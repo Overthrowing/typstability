@@ -157,3 +157,32 @@ button { color: inherit; }
 @media (max-width: 360px) {
   .export-button { display: none; }
 }
+
+.project-library { height: 100%; overflow: auto; background: #f2f0ea; }
+.library-content { max-width: 940px; margin: auto; padding: 64px 28px; }
+.library-heading { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.library-heading h1 { margin: 0; font: 42px Georgia, serif; letter-spacing: -.025em; }
+.library-heading .eyebrow { margin-top: 20px; }
+.library-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 22px 0; }
+.project-list { display: grid; gap: 12px; }
+.project-card { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.project-open { display: flex; align-items: center; gap: 16px; text-align: left; min-width: 0; flex: 1; padding: 12px; border: 0; background: none; cursor: pointer; }
+.project-open > span { display: grid; min-width: 0; gap: 7px; }
+.project-open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.project-open small { color: var(--muted); font-size: 11px; }
+.project-actions { display: flex; }
+.empty-projects { padding: 48px 20px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 14px; }
+.document-label { display: grid; min-width: 0; gap: 2px; }
+.document-label small { color: var(--muted); font-size: 9px; }
+.projects-button, .project-export-button { display: flex; align-items: center; gap: 7px; flex-shrink: 0; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: white; cursor: pointer; font-size: 12px; }
+.busy-overlay { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; gap: 10px; background: #f2f0eabf; font-size: 14px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+button:disabled { cursor: default; opacity: .5; }
+.toolbar { height: auto; min-height: 54px; flex-basis: auto; flex-wrap: wrap; padding-block: 8px; }
+@media (max-width: 600px) {
+  .library-content { padding: 28px 18px; }
+  .library-heading { flex-direction: column; margin-bottom: 20px; }
+  .welcome-actions { flex-wrap: wrap; }
+  .project-card { flex-wrap: wrap; }
+  .project-export-button span { display: none; }
+}

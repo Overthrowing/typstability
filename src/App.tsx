@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileUp, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, RotateCcw, Trash2 } from 'lucide-react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { CanvasPage } from './components/CanvasPage'
 import { PageThumbnail } from './components/PageThumbnail'
@@ -8,7 +8,9 @@ import { Toolbar } from './components/Toolbar'
 import { TypstInspector } from './components/TypstInspector'
 import { useHistoryState } from './lib/history'
 import { createPdfProxy, downloadBytes, exportPdf, readPdf } from './lib/pdf'
-import { loadSession, saveSession } from './lib/storage'
+import { useProjects } from './lib/use-projects'
+import { downloadProject, parseProject } from './lib/project-file'
+import { ProjectLibrary } from './components/ProjectLibrary'
 import { compileTypstSvg } from './typst/client'
 import { strokeTouchesPoint } from './lib/geometry'
 import type {
@@ -52,13 +54,29 @@ function App() {
   const [preludeError, setPreludeError] = useState<string | undefined>()
   const [finalCompileRevision, setFinalCompileRevision] = useState(0)
   const [exporting, setExporting] = useState(false)
-  const [recoverable, setRecoverable] = useState<EditorDocument | null>(null)
-  const [storageReady, setStorageReady] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const openInputRef = useRef<HTMLInputElement>(null)
+  const projectInputRef = useRef<HTMLInputElement>(null)
+  const [readingFile, setReadingFile] = useState(false)
+  const generation = useRef(0)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const compileBurstStartRef = useRef<number | null>(null)
   const handledFinalCompileRef = useRef(0)
+
+  const loadDocument = useCallback((next: EditorDocument) => {
+    generation.current += 1
+    setDragPreview(null)
+    setPreludeError(undefined)
+    resetDocumentState(next)
+    setSelection(null)
+    setActivePageId(next.pages[0]?.id ?? null)
+    setTool('select')
+    setPreludeOpen(false)
+    setNotice(null)
+  }, [resetDocumentState])
+
+  const library = useProjects(document, loadDocument)
+  const busy = library.busy || readingFile
 
   const activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
   const selectedElement = useMemo(() => {
@@ -76,30 +94,19 @@ function App() {
   const selectedPageId = selection?.pageId
 
   useEffect(() => {
-    loadSession()
-      .then((session) => setRecoverable(session ?? null))
-      .catch(() => undefined)
-      .finally(() => setStorageReady(true))
-  }, [])
-
-  useEffect(() => {
-    if (!storageReady || !document.pages.length) return
-    const timer = window.setTimeout(() => {
-      void saveSession({ ...document, updatedAt: Date.now() })
-    }, 800)
-    return () => window.clearTimeout(timer)
-  }, [document, storageReady])
-
-  useEffect(() => {
     if (!document.originalPdf) {
       setPdfProxy(null)
       return
     }
     let cancelled = false
+    setPdfProxy(null)
+    let loaded: PDFDocumentProxy | null = null
     createPdfProxy(document.originalPdf).then((proxy) => {
-      if (!cancelled) setPdfProxy(proxy)
+      if (cancelled) { void proxy.loadingTask.destroy(); return }
+      loaded = proxy
+      setPdfProxy(proxy)
     }).catch((error) => setNotice(error instanceof Error ? error.message : String(error)))
-    return () => { cancelled = true }
+    return () => { cancelled = true; void loaded?.loadingTask.destroy() }
   }, [document.originalPdf])
 
   const updateDocument = useCallback((updater: (current: EditorDocument) => EditorDocument, record = true) => {
@@ -117,6 +124,8 @@ function App() {
 
   useEffect(() => {
     if (!selectedTypstId || selectedTypstSource === undefined || selectedTypstWidth === undefined || selectedTypstHeight === undefined || !selectedPageId) return
+    let cancelled = false
+    const revision = generation.current
     const id = selectedTypstId
     const pageId = selectedPageId
     const source = selectedTypstSource
@@ -134,6 +143,7 @@ function App() {
       compileBurstStartRef.current = null
       compileTypstSvg(source, width, height, prelude)
         .then((previewSvg) => {
+          if (cancelled || revision !== generation.current) return
           updateDocument((current) => ({
             ...current,
             pages: current.pages.map((page) => page.id === pageId
@@ -141,7 +151,7 @@ function App() {
                   ...page,
                   elements: page.elements.map((element) =>
                     element.id === id && element.kind === 'typst'
-                    && element.source === source && element.width === width && element.height === height
+                    && current.prelude === prelude && element.source === source && element.width === width && element.height === height
                       ? {
                           ...element,
                           previewSvg,
@@ -156,6 +166,7 @@ function App() {
           }), false)
         })
         .catch((error) => {
+          if (cancelled || revision !== generation.current) return
           updateDocument((current) => ({
             ...current,
             pages: current.pages.map((page) => page.id === pageId
@@ -163,7 +174,7 @@ function App() {
                   ...page,
                   elements: page.elements.map((element) =>
                     element.id === id && element.kind === 'typst'
-                    && element.source === source && element.width === width && element.height === height
+                    && current.prelude === prelude && element.source === source && element.width === width && element.height === height
                       ? { ...element, error: error instanceof Error ? error.message : String(error) }
                       : element),
                 }
@@ -171,7 +182,7 @@ function App() {
           }), false)
         })
     }, delay)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [
     selectedTypstSource,
     selectedTypstWidth,
@@ -185,36 +196,55 @@ function App() {
 
   useEffect(() => {
     if (!preludeOpen) return
+    let cancelled = false
     const prelude = document.prelude
     const timer = window.setTimeout(() => {
       compileTypstSvg('', 240, 120, prelude)
-        .then(() => setPreludeError(undefined))
-        .catch((error) => setPreludeError(error instanceof Error ? error.message : String(error)))
+        .then(() => { if (!cancelled) setPreludeError(undefined) })
+        .catch((error) => { if (!cancelled) setPreludeError(error instanceof Error ? error.message : String(error)) })
     }, 80)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [document.prelude, preludeOpen])
-
-  const loadDocument = useCallback((next: EditorDocument) => {
-    resetDocumentState(next)
-    setSelection(null)
-    setActivePageId(next.pages[0]?.id ?? null)
-    setTool('select')
-    setPreludeOpen(false)
-    setNotice(null)
-  }, [resetDocumentState])
 
   const openPdf = async (file?: File) => {
     if (!file) return
+    setReadingFile(true)
     try {
-      loadDocument(await readPdf(file))
+      await library.create(await readPdf(file))
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'That PDF could not be opened.')
-    }
+    } finally { setReadingFile(false) }
+  }
+
+  const importProject = async (file?: File) => {
+    if (!file) return
+    setReadingFile(true)
+    try {
+      const next = parseProject(await file.text())
+      if (next.originalPdf) {
+        const pdf = await createPdfProxy(next.originalPdf)
+        try {
+          if (next.pages.some((page) => page.sourceIndex !== null && page.sourceIndex >= pdf.numPages)) throw new Error('Project references a missing PDF page.')
+        } finally { await pdf.loadingTask.destroy() }
+      }
+      // Preview caches are regenerated from trusted compiler output on import.
+      for (const page of next.pages) for (const element of page.elements) {
+        if (element.kind !== 'typst') continue
+        try {
+          element.previewSvg = await compileTypstSvg(element.source, element.width, element.height, next.prelude)
+          element.previewWidth = element.width
+          element.previewHeight = element.height
+          element.previewPrelude = next.prelude
+        } catch (e) { element.error = String(e) }
+      }
+      await library.create(next)
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'That project could not be imported.') }
+    finally { setReadingFile(false) }
   }
 
   const newDocument = () => {
     const pageId = uid()
-    loadDocument({
+    void library.create({
       name: 'Untitled',
       prelude: '',
       originalPdf: null,
@@ -402,6 +432,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (busy || library.libraryOpen) return
       const target = event.target as HTMLElement
       const editing = target.matches('textarea, input')
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
@@ -434,39 +465,30 @@ function App() {
     }
   }
 
-  if (!storageReady) {
-    return <main className="loading-screen"><RotateCcw className="spin" size={18} /> Loading locally…</main>
-  }
-
-  if (!document.pages.length) {
-    return (
-      <main className="welcome">
-        <div className="welcome-card">
-          <div className="welcome-mark">T</div>
-          <p className="eyebrow">LOCAL PDF EDITOR</p>
-          <h1>Quiet tools for working on PDFs.</h1>
-          <p className="welcome-copy">Add images, freehand notes, blank pages, and beautifully typeset Typst—without sending your document anywhere.</p>
-          <div className="welcome-actions">
-            <button className="primary-large" onClick={() => openInputRef.current?.click()}><FileUp size={18} /> Open a PDF</button>
-            <button className="secondary-large" onClick={newDocument}><Plus size={18} /> Blank document</button>
-          </div>
-          {recoverable && recoverable.pages.length > 0 && (
-            <button className="restore-button" onClick={() => loadDocument(recoverable)}>
-              <RotateCcw size={15} /> Restore “{recoverable.name}”
-              <span>{new Date(recoverable.updatedAt).toLocaleString()}</span>
-            </button>
-          )}
-          <div className="privacy-note"><ShieldCheck size={15} /> Your files stay in this browser.</div>
-        </div>
-        <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => void openPdf(event.target.files?.[0])} />
-      </main>
-    )
-  }
+  const fileInputs = <>
+    <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => { void openPdf(event.target.files?.[0]); event.target.value = '' }} />
+    <input ref={projectInputRef} hidden type="file" accept=".typstability,application/json" onChange={(event) => { void importProject(event.target.files?.[0]); event.target.value = '' }} />
+  </>
+  const alert = (notice || library.error) && <div className="notice" role="alert">{notice || library.error}<button aria-label="Dismiss notice" onClick={() => { setNotice(null); library.clearError() }}>×</button></div>
+  const busyIndicator = busy && <div className="busy-overlay" role="status"><RotateCcw className="spin" size={18} /> Working…</div>
+  if (!library.ready) return <main className="loading-screen"><RotateCcw className="spin" size={18} /> Loading projects…</main>
+  if (library.libraryOpen || !document.pages.length) return <>
+    <ProjectLibrary projects={library.projects} activeId={library.activeId} busy={busy}
+      onClose={library.closeLibrary} onNew={newDocument}
+      onPdf={() => openInputRef.current?.click()} onImport={() => projectInputRef.current?.click()}
+      onOpen={(id) => void library.open(id)} onRename={(id, name) => void library.rename(id, name)}
+      onDuplicate={(id) => void library.duplicate(id)} onDelete={(id) => void library.remove(id)} />
+    {fileInputs}{alert}{busyIndicator}
+  </>
 
   return (
     <div className="app-shell">
       <Toolbar
         name={document.name}
+        saveStatus={library.status}
+        onProjects={() => void library.showLibrary()}
+        onImportProject={() => projectInputRef.current?.click()}
+        onExportProject={() => { try { downloadProject(document) } catch (e) { setNotice(String(e)) } }}
         tool={tool}
         zoom={zoom}
         canUndo={documentHistory.canUndo}
@@ -603,8 +625,7 @@ function App() {
           </div>
         )}
       </div>
-      {notice && <div className="notice" role="alert">{notice}<button onClick={() => setNotice(null)}>×</button></div>}
-      <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => void openPdf(event.target.files?.[0])} />
+      {alert}{fileInputs}{busyIndicator}
       <input ref={imageInputRef} hidden type="file" accept="image/png,image/jpeg" onChange={(event) => void addImage(event.target.files?.[0])} />
     </div>
   )

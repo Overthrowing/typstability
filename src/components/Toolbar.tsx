@@ -1,5 +1,8 @@
 import {
   Braces,
+  FolderOpen,
+  FileDown,
+  FileUp,
   Download,
   Eraser,
   FilePlus2,
@@ -18,6 +21,10 @@ import type { Tool } from '../types'
 
 type Props = {
   name: string
+  saveStatus: string
+  onProjects: () => void
+  onImportProject: () => void
+  onExportProject: () => void
   tool: Tool
   zoom: number
   canUndo: boolean
@@ -48,7 +55,7 @@ const ToolButton = ({ active, title, onClick, children }: {
   onClick: () => void
   children: React.ReactNode
 }) => (
-  <button className={`tool-button ${active ? 'is-active' : ''}`} title={title} onClick={onClick}>
+  <button className={`tool-button ${active ? 'is-active' : ''}`} title={title} aria-label={title} onClick={onClick}>
     {children}
   </button>
 )
@@ -56,9 +63,10 @@ const ToolButton = ({ active, title, onClick, children }: {
 export function Toolbar(props: Props) {
   return (
     <header className="toolbar">
+      <button className="projects-button" onClick={props.onProjects}><FolderOpen size={17} /> Projects</button>
       <div className="brand" title={props.name}>
         <span className="brand-mark">T</span>
-        <span className="document-name">{props.name}</span>
+        <span className="document-label"><span className="document-name">{props.name}</span><small role="status">{props.saveStatus}</small></span>
       </div>
       <div className="toolbar-group document-controls">
         <ToolButton title="Open PDF" onClick={props.onOpen}><Upload size={17} /></ToolButton>
@@ -119,6 +127,8 @@ export function Toolbar(props: Props) {
         </div>
       )}
       <div className="toolbar-spacer" />
+      <ToolButton title="Import project" onClick={props.onImportProject}><FileUp size={17} /></ToolButton>
+      <button className="project-export-button" onClick={props.onExportProject}><FileDown size={17} /> <span>Export Project</span></button>
       <div className="toolbar-group history-controls">
         <button className="tool-button" title="Undo" onClick={props.onUndo} disabled={!props.canUndo}><Undo2 size={17} /></button>
         <button className="tool-button" title="Redo" onClick={props.onRedo} disabled={!props.canRedo}><Redo2 size={17} /></button>
