@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PanelLeftClose, PanelLeftOpen, RotateCcw, Trash2 } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { CanvasPage } from './components/CanvasPage'
 import { PageThumbnail } from './components/PageThumbnail'
@@ -56,6 +56,7 @@ function App() {
   const [exporting, setExporting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const openInputRef = useRef<HTMLInputElement>(null)
+  const documentScrollRef = useRef<HTMLElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
   const [readingFile, setReadingFile] = useState(false)
   const generation = useRef(0)
@@ -242,10 +243,10 @@ function App() {
     finally { setReadingFile(false) }
   }
 
-  const newDocument = () => {
+  const newDocument = (name: string) => {
     const pageId = uid()
     void library.create({
-      name: 'Untitled',
+      name,
       prelude: '',
       originalPdf: null,
       pages: [{ id: pageId, sourceIndex: null, ...LETTER_PAGE, elements: [] }],
@@ -270,6 +271,7 @@ function App() {
     })
     setActivePageId(pageId)
     setSelection(null)
+    window.requestAnimationFrame(() => globalThis.document.getElementById(`page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   const deletePage = (pageId: string) => {
@@ -435,7 +437,7 @@ function App() {
       if (busy || library.libraryOpen) return
       const target = event.target as HTMLElement
       const editing = target.matches('textarea, input')
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      if (!editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) documentHistory.redo()
         else documentHistory.undo()
@@ -485,12 +487,11 @@ function App() {
     <div className="app-shell">
       <Toolbar
         name={document.name}
+        onRename={(name) => { if (name !== document.name) updateDocument((current) => ({ ...current, name }), false) }}
         saveStatus={library.status}
         onProjects={() => void library.showLibrary()}
-        onImportProject={() => projectInputRef.current?.click()}
         onExportProject={() => { try { downloadProject(document) } catch (e) { setNotice(String(e)) } }}
         tool={tool}
-        zoom={zoom}
         canUndo={documentHistory.canUndo}
         canRedo={documentHistory.canRedo}
         exporting={exporting}
@@ -498,14 +499,11 @@ function App() {
         penRadius={penRadius}
         eraserRadius={eraserRadius}
         preludeOpen={preludeOpen}
-        onOpen={() => openInputRef.current?.click()}
-        onNew={newDocument}
         onImage={() => imageInputRef.current?.click()}
         onTool={setChosenTool}
         onBlankPage={insertBlankPage}
         onUndo={documentHistory.undo}
         onRedo={documentHistory.redo}
-        onZoom={(next) => setZoom(Math.min(1.8, Math.max(0.4, next)))}
         onExport={() => void doExport()}
         onPenColor={setPenColor}
         onPenRadius={setPenRadius}
@@ -514,36 +512,31 @@ function App() {
       />
       <div className="workspace">
         <nav className={`page-rail ${thumbnailsOpen ? '' : 'is-collapsed'}`} aria-label="Pages">
-          <button
-            className="rail-toggle"
-            onClick={() => setThumbnailsOpen((open) => !open)}
-            title={thumbnailsOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
-            aria-label={thumbnailsOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
-          >
-            {thumbnailsOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
-          </button>
-          {thumbnailsOpen && document.pages.map((page, index) => (
-            <button
-              key={page.id}
-              className={`page-thumbnail ${activePage?.id === page.id ? 'is-active' : ''}`}
-              onClick={() => {
-                setActivePageId(page.id)
-                globalThis.document.getElementById(`page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
-            >
-              <PageThumbnail page={page} pdf={pdfProxy} />
-              <span className="thumbnail-number">{index + 1}</span>
-              {document.pages.length > 1 && (
-                <i
-                  role="button"
-                  aria-label={`Delete page ${index + 1}`}
-                  onClick={(event) => { event.stopPropagation(); deletePage(page.id) }}
-                ><Trash2 size={12} /></i>
-              )}
+          <div className="rail-heading">
+            {thumbnailsOpen && <span>Pages <small>{document.pages.length}</small></span>}
+            <button className="rail-toggle" onClick={() => setThumbnailsOpen((open) => !open)}
+              title={thumbnailsOpen ? 'Hide pages' : 'Show pages'} aria-label={thumbnailsOpen ? 'Hide pages' : 'Show pages'}>
+              {thumbnailsOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
             </button>
-          ))}
+          </div>
+          {thumbnailsOpen && <>
+            {document.pages.map((page, index) => (
+              <div className={`page-thumbnail ${activePage?.id === page.id ? 'is-active' : ''}`} key={page.id}>
+                <button className="thumbnail-select" aria-label={`Go to page ${index + 1}`} aria-current={activePage?.id === page.id ? 'page' : undefined}
+                  onClick={() => {
+                    setActivePageId(page.id)
+                    globalThis.document.getElementById(`page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}>
+                  <PageThumbnail page={page} pdf={pdfProxy} />
+                  <span className="thumbnail-number">{index + 1}</span>
+                </button>
+                {document.pages.length > 1 && <button className="thumbnail-delete" title={`Delete page ${index + 1}`} aria-label={`Delete page ${index + 1}`} onClick={() => deletePage(page.id)}><Trash2 size={12} /></button>}
+              </div>
+            ))}
+            <button className="add-page-button" onClick={insertBlankPage} title="Insert a blank page after the current page"><Plus size={15} /> Add page</button>
+          </>}
         </nav>
-        <main className={`document-scroll ${selectedTypst || preludeOpen ? 'with-inspector' : ''}`}>
+        <main ref={documentScrollRef} className={`document-scroll ${selectedTypst || preludeOpen ? 'with-inspector' : ''}`}>
           {document.pages.map((page, index) => (
             <div id={`page-${page.id}`} key={page.id} className="page-positioner">
               <CanvasPage
@@ -625,8 +618,24 @@ function App() {
           </div>
         )}
       </div>
+      <footer className="editor-statusbar">
+        <span className="page-count">Page {Math.max(1, document.pages.findIndex((page) => page.id === activePage?.id) + 1)} of {document.pages.length}</span>
+        <span className="tool-hint">{tool === 'typst' ? 'Drag on a page to add a text box.' : tool === 'pen' ? 'Drag to draw. Your strokes save automatically.' : tool === 'eraser' ? 'Drag over pen strokes to erase them.' : 'Click an object to move, resize, or edit it.'}</span>
+        <div className="zoom-control">
+          <button className="fit-page" onClick={() => {
+            const viewport = documentScrollRef.current
+            if (!viewport || !activePage) return
+            const width = viewport.clientWidth - parseFloat(getComputedStyle(viewport).paddingRight) - 48
+            setZoom(Math.max(0.1, Math.min(1.8, width / activePage.width, (viewport.clientHeight - 72) / activePage.height)))
+            window.requestAnimationFrame(() => globalThis.document.getElementById(`page-${activePage.id}`)?.scrollIntoView({ block: 'center' }))
+          }}>Fit page</button>
+          <button onClick={() => setZoom((value) => Math.max(0.1, value - 0.1))} disabled={zoom <= 0.1} aria-label="Zoom out"><ZoomOut size={15} /></button>
+          <button className="zoom-reset" onClick={() => setZoom(1)} title="Reset zoom to 100%">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => setZoom((value) => Math.min(1.8, value + 0.1))} disabled={zoom >= 1.8} aria-label="Zoom in"><ZoomIn size={15} /></button>
+        </div>
+      </footer>
       {alert}{fileInputs}{busyIndicator}
-      <input ref={imageInputRef} hidden type="file" accept="image/png,image/jpeg" onChange={(event) => void addImage(event.target.files?.[0])} />
+      <input ref={imageInputRef} hidden type="file" accept="image/png,image/jpeg" onChange={(event) => { void addImage(event.target.files?.[0]); event.target.value = '' }} />
     </div>
   )
 }

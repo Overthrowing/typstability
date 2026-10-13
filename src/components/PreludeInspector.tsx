@@ -12,8 +12,8 @@ export function PreludeInspector({ source, error, onChange, onClose }: Props) {
     <aside className="inspector">
       <header className="inspector-header">
         <div>
-          <strong>Prelude</strong>
-          <span>Shared by every Typst box</span>
+          <strong>Shared styles</strong>
+          <span>Typst prelude · applies to all text boxes</span>
         </div>
         <button className="icon-button" onClick={onClose} title="Close prelude" aria-label="Close prelude">
           <X size={16} />
@@ -30,7 +30,7 @@ export function PreludeInspector({ source, error, onChange, onClose }: Props) {
         spellCheck={false}
       />
       <div className="inspector-footer">
-        <span>Definitions and styles compile locally.</span>
+        <span>Define reusable styles and functions here.</span>
       </div>
     </aside>
   )

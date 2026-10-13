@@ -1,32 +1,17 @@
 import {
-  Braces,
-  FolderOpen,
-  FileDown,
-  FileUp,
-  Download,
-  Eraser,
-  FilePlus2,
-  ImagePlus,
-  MousePointer2,
-  PenLine,
-  Redo2,
-  RotateCcw,
-  Type,
-  Undo2,
-  Upload,
-  ZoomIn,
-  ZoomOut,
+  ArrowLeft, Braces, Check, Download, Eraser, FileDown, FileText,
+  ImagePlus, MousePointer2, PenLine, Plus, Redo2, RotateCcw, Type, Undo2, AlertCircle,
 } from 'lucide-react'
 import type { Tool } from '../types'
+import { ActionMenu } from './ActionMenu'
 
 type Props = {
   name: string
   saveStatus: string
+  onRename: (name: string) => void
   onProjects: () => void
-  onImportProject: () => void
   onExportProject: () => void
   tool: Tool
-  zoom: number
   canUndo: boolean
   canRedo: boolean
   exporting: boolean
@@ -34,14 +19,11 @@ type Props = {
   penRadius: number
   eraserRadius: number
   preludeOpen: boolean
-  onOpen: () => void
-  onNew: () => void
   onImage: () => void
   onTool: (tool: Tool) => void
   onBlankPage: () => void
   onUndo: () => void
   onRedo: () => void
-  onZoom: (zoom: number) => void
   onExport: () => void
   onPenColor: (color: string) => void
   onPenRadius: (radius: number) => void
@@ -49,99 +31,59 @@ type Props = {
   onPrelude: () => void
 }
 
-const ToolButton = ({ active, title, onClick, children }: {
-  active?: boolean
-  title: string
-  onClick: () => void
-  children: React.ReactNode
-}) => (
-  <button className={`tool-button ${active ? 'is-active' : ''}`} title={title} aria-label={title} onClick={onClick}>
-    {children}
-  </button>
-)
-
 export function Toolbar(props: Props) {
-  return (
-    <header className="toolbar">
-      <button className="projects-button" onClick={props.onProjects}><FolderOpen size={17} /> Projects</button>
-      <div className="brand" title={props.name}>
-        <span className="brand-mark">T</span>
-        <span className="document-label"><span className="document-name">{props.name}</span><small role="status">{props.saveStatus}</small></span>
+  const tools = [
+    { id: 'select', label: 'Select', icon: <MousePointer2 size={17} />, hint: 'Move and resize objects' },
+    { id: 'typst', label: 'Text', icon: <Type size={18} />, hint: 'Drag on a page to add a Typst text box' },
+    { id: 'pen', label: 'Draw', icon: <PenLine size={17} />, hint: 'Draw freehand on a page' },
+    { id: 'eraser', label: 'Erase', icon: <Eraser size={17} />, hint: 'Erase pen strokes' },
+  ] as const
+  return <header className="editor-header">
+    <div className="project-bar">
+      <button className="back-button" aria-label="Back to projects" onClick={props.onProjects} title="Back to your projects"><ArrowLeft size={17} /><span>Projects</span></button>
+      <span className="header-divider" />
+      <img className="app-logo editor-logo" src={`${import.meta.env.BASE_URL}typstability-logo.png`} alt="Typstability" />
+      <div className="project-identity">
+        <input className="project-title" aria-label="Project name" maxLength={180} title="Click to rename this project" value={props.name}
+          onChange={(event) => props.onRename(event.target.value)}
+          onBlur={(event) => props.onRename(event.target.value.trim() || 'Untitled document')}
+          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
+        <span className={`save-status ${props.saveStatus === 'Save failed' ? 'save-error' : ''}`} role="status">
+          {props.saveStatus === 'Saved' ? <Check size={12} /> : props.saveStatus === 'Save failed' ? <AlertCircle size={12} /> : <RotateCcw className="spin" size={11} />}
+          {props.saveStatus === 'Saved' ? 'Saved in this browser' : props.saveStatus}
+        </span>
       </div>
-      <div className="toolbar-group document-controls">
-        <ToolButton title="Open PDF" onClick={props.onOpen}><Upload size={17} /></ToolButton>
-        <ToolButton title="New document" onClick={props.onNew}><FilePlus2 size={17} /></ToolButton>
+      <ActionMenu label={props.exporting ? 'Exporting…' : 'Export'} primary disabled={props.exporting}
+        icon={props.exporting ? <RotateCcw className="spin" size={16} /> : <Download size={16} />}
+        items={[
+          { label: 'PDF document', description: 'A finished PDF to share or print.', icon: <FileText size={20} />, onSelect: props.onExport },
+          { label: 'Editable project', description: 'A .typstability backup to keep editing later.', icon: <FileDown size={20} />, onSelect: props.onExportProject },
+        ]} />
+    </div>
+    <div className="editing-bar" aria-label="Editing tools">
+      <div className="tool-picker" role="group" aria-label="Choose a tool">
+        {tools.map((tool) => <button key={tool.id} className={`editing-tool ${props.tool === tool.id ? 'is-active' : ''}`}
+          title={tool.hint} aria-pressed={props.tool === tool.id} onClick={() => props.onTool(tool.id)}>{tool.icon}<span>{tool.label}</span></button>)}
       </div>
-      <div className="toolbar-separator" />
-      <div className="toolbar-group edit-controls">
-        <ToolButton active={props.tool === 'select'} title="Select" onClick={() => props.onTool('select')}>
-          <MousePointer2 size={17} />
-        </ToolButton>
-        <ToolButton title="Insert image" onClick={props.onImage}><ImagePlus size={17} /></ToolButton>
-        <ToolButton active={props.tool === 'typst'} title="Draw a Typst text box" onClick={() => props.onTool('typst')}>
-          <Type size={18} />
-        </ToolButton>
-        <ToolButton active={props.tool === 'pen'} title="Pen" onClick={() => props.onTool('pen')}>
-          <PenLine size={17} />
-        </ToolButton>
-        <ToolButton active={props.tool === 'eraser'} title="Erase pen strokes" onClick={() => props.onTool('eraser')}>
-          <Eraser size={17} />
-        </ToolButton>
-        <ToolButton title="Insert blank page" onClick={props.onBlankPage}><FilePlus2 size={17} /></ToolButton>
-        <ToolButton active={props.preludeOpen} title="Edit Typst prelude" onClick={props.onPrelude}>
-          <Braces size={17} />
-        </ToolButton>
+      <span className="header-divider" />
+      <ActionMenu label="Insert" icon={<Plus size={17} />} align="left" items={[
+        { label: 'Image', description: 'Add a PNG or JPEG to this page.', icon: <ImagePlus size={18} />, onSelect: props.onImage },
+        { label: 'Blank page', description: 'Insert a page after the current one.', icon: <FileText size={18} />, onSelect: props.onBlankPage },
+      ]} />
+      <button className={`styles-button ${props.preludeOpen ? 'is-active' : ''}`} aria-pressed={props.preludeOpen} onClick={props.onPrelude} title="Shared Typst definitions and styles"><Braces size={17} /><span>Shared styles</span></button>
+      <div className="history-controls" role="group" aria-label="Edit history">
+        <button className="icon-button" title="Undo" aria-label="Undo" onClick={props.onUndo} disabled={!props.canUndo}><Undo2 size={17} /></button>
+        <button className="icon-button" title="Redo" aria-label="Redo" onClick={props.onRedo} disabled={!props.canRedo}><Redo2 size={17} /></button>
       </div>
-      {props.tool === 'pen' && (
-        <div className="pen-controls">
-          <input
-            type="color"
-            value={props.penColor}
-            onChange={(event) => props.onPenColor(event.target.value)}
-            aria-label="Pen color"
-          />
-          <input
-            type="range"
-            min="1"
-            max="12"
-            step="0.5"
-            value={props.penRadius}
-            onChange={(event) => props.onPenRadius(Number(event.target.value))}
-            aria-label="Pen radius"
-          />
-          <span>{props.penRadius}px</span>
-        </div>
-      )}
-      {props.tool === 'eraser' && (
-        <div className="pen-controls">
-          <input
-            type="range"
-            min="4"
-            max="32"
-            step="1"
-            value={props.eraserRadius}
-            onChange={(event) => props.onEraserRadius(Number(event.target.value))}
-            aria-label="Eraser radius"
-          />
-          <span>{props.eraserRadius}px</span>
-        </div>
-      )}
-      <div className="toolbar-spacer" />
-      <ToolButton title="Import project" onClick={props.onImportProject}><FileUp size={17} /></ToolButton>
-      <button className="project-export-button" onClick={props.onExportProject}><FileDown size={17} /> <span>Export Project</span></button>
-      <div className="toolbar-group history-controls">
-        <button className="tool-button" title="Undo" onClick={props.onUndo} disabled={!props.canUndo}><Undo2 size={17} /></button>
-        <button className="tool-button" title="Redo" onClick={props.onRedo} disabled={!props.canRedo}><Redo2 size={17} /></button>
-      </div>
-      <div className="zoom-control">
-        <button onClick={() => props.onZoom(props.zoom - 0.1)} aria-label="Zoom out"><ZoomOut size={15} /></button>
-        <span>{Math.round(props.zoom * 100)}%</span>
-        <button onClick={() => props.onZoom(props.zoom + 0.1)} aria-label="Zoom in"><ZoomIn size={15} /></button>
-      </div>
-      <button className="export-button" onClick={props.onExport} disabled={props.exporting}>
-        {props.exporting ? <RotateCcw className="spin" size={16} /> : <Download size={16} />}
-        <span>{props.exporting ? 'Exporting' : 'Export PDF'}</span>
-      </button>
-    </header>
-  )
+    </div>
+    {(props.tool === 'pen' || props.tool === 'eraser') && <div className="tool-options">
+      {props.tool === 'pen' && <label>Color <input type="color" value={props.penColor} onChange={(event) => props.onPenColor(event.target.value)} /></label>}
+      <label>{props.tool === 'pen' ? 'Brush size' : 'Eraser size'}
+        <input type="range" min={props.tool === 'pen' ? 1 : 4} max={props.tool === 'pen' ? 12 : 32} step={props.tool === 'pen' ? 0.5 : 1}
+          value={props.tool === 'pen' ? props.penRadius : props.eraserRadius}
+          onChange={(event) => props.tool === 'pen' ? props.onPenRadius(Number(event.target.value)) : props.onEraserRadius(Number(event.target.value))} />
+        <output>{2 * (props.tool === 'pen' ? props.penRadius : props.eraserRadius)}px</output>
+      </label>
+    </div>}
+  </header>
 }

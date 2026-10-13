@@ -7,19 +7,20 @@ A minimal, local-first PDF editor with Typst text boxes. Open a PDF, add images,
 
 ## Editing
 
-- Choose the **Typst** tool, then drag on a page to create a text box. The bundled Typst WebAssembly compiler keeps a long-lived incremental compilation session, so the preview updates as you type.
-- Use **Prelude** (`{ }`) to define document-wide Typst functions, variables, and styles shared by every text box.
+- Choose the **Text** tool, then drag on a page to create a text box. The bundled Typst WebAssembly compiler keeps a long-lived incremental compilation session, so the preview updates as you type.
+- Use **Shared styles** (`{ }`) to define document-wide Typst functions, variables, and styles shared by every text box.
 - Choose **Select** to resize a text box or drag it onto another page. Typst reflows incrementally while a box is resized instead of stretching the old preview.
-- Choose **Pen** to draw with a configurable color and radius. Choose **Eraser** to remove any pen stroke that touches its configurable eraser radius.
+- Choose **Draw** to draw with a configurable color and radius. Choose **Erase** to remove any pen stroke that touches its configurable eraser radius.
 - Inserted blank pages participate in editing and export exactly like pages opened from a PDF.
 - The left rail renders miniature PDF pages and can be collapsed with the panel button above the thumbnails.
 
 ## Projects and backups
 
-- **Projects** opens the library of projects saved in this browser. Create, open, rename, duplicate, or delete projects there.
+- **Projects** returns to your library. Choose **Start from a PDF**, **Start a blank document**, or **Import a saved project**. The project menu (•••) has rename, copy, and delete actions.
+- Click the project name in the editor to rename it. **Insert** adds an image or a blank page to the current document; it does not create another project.
 - Edits autosave to IndexedDB. The toolbar shows **Saving…**, **Saved**, or **Save failed**. Switching projects waits for pending saves, and each opened project starts with its own fresh undo history.
-- **Export Project** downloads a `.typstability` file containing the original PDF, inserted images, pages, pen strokes, Typst source, and prelude. **Import project** opens that file as a new project without replacing existing projects.
-- **Export PDF** creates the finished PDF. Use **Export Project** when you want to keep editing later or transfer work to another browser.
+- **Export → Editable project** downloads a `.typstability` file containing the original PDF, inserted images, pages, pen strokes, Typst source, and prelude. **Import a saved project** opens that file as a new project without replacing existing projects.
+- **Export → PDF document** creates the finished PDF. Use **Export → Editable project** when you want to keep editing later or transfer work to another browser.
 - Projects are local to the browser profile and site origin. Localhost and GitHub Pages have separate storage. Clearing site data removes saved projects; keep exported backups. A save error leaves the current document open for export.
 - The previous single-session autosave is migrated into the project library automatically. The old record remains as a backup during migration.
 

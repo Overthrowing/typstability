@@ -13,7 +13,7 @@ export function TypstInspector({ element, onSourceChange, onDelete, onClose }: P
     <aside className="inspector">
       <header className="inspector-header">
         <div>
-          <strong>Typst</strong>
+          <strong>Text box</strong>
           <span>{Math.round(element.width)} × {Math.round(element.height)} pt</span>
         </div>
         <button className="icon-button" onClick={onClose} title="Close editor" aria-label="Close editor">
@@ -21,18 +21,19 @@ export function TypstInspector({ element, onSourceChange, onDelete, onClose }: P
         </button>
       </header>
       {element.error && <div className="compile-error">{element.error}</div>}
-      <label className="source-label" htmlFor="typst-source">Source</label>
+      <label className="source-label" htmlFor="typst-source">Text & Typst source</label>
       <textarea
         id="typst-source"
         className="source-editor"
         value={element.source}
         onChange={(event) => onSourceChange(event.target.value)}
+        placeholder="Write text or Typst markup…"
         spellCheck={false}
       />
       <div className="inspector-footer">
-        <span>Typst compiles locally.</span>
+        <span>Preview updates as you type.</span>
         <button className="danger-button" onClick={onDelete}>
-          <Trash2 size={14} /> Delete
+          <Trash2 size={14} /> Delete box
         </button>
       </div>
     </aside>
