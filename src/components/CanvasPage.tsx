@@ -260,7 +260,9 @@ export function CanvasPage({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !pdf || page.sourceIndex === null) return
-    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, zoom)
+    const controller = new AbortController()
+    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, zoom, controller.signal).catch(console.error)
+    return () => controller.abort()
   }, [page.sourceIndex, pdf, zoom])
 
   const flatTemporaryPoints = useMemo(

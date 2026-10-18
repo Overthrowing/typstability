@@ -43,22 +43,38 @@ export async function renderPdfPage(
   pageNumber: number,
   canvas: HTMLCanvasElement,
   scale: number,
+  signal?: AbortSignal,
 ) {
   const page = await proxy.getPage(pageNumber)
+  if (signal?.aborted) return
   const viewport = page.getViewport({ scale })
   const outputScale = window.devicePixelRatio || 1
-  const context = canvas.getContext('2d')
+  // Draw offscreen so the previous image stays visible while resizing. Each
+  // render owns its canvas; an older task cannot overwrite a newer zoom level.
+  const buffer = document.createElement('canvas')
+  const context = buffer.getContext('2d')
   if (!context) return
-  canvas.width = Math.floor(viewport.width * outputScale)
-  canvas.height = Math.floor(viewport.height * outputScale)
-  canvas.style.width = `${viewport.width}px`
-  canvas.style.height = `${viewport.height}px`
-  await page.render({
-    canvas,
+  buffer.width = Math.floor(viewport.width * outputScale)
+  buffer.height = Math.floor(viewport.height * outputScale)
+  const task = page.render({
+    canvas: buffer,
     canvasContext: context,
     viewport,
     transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-  }).promise
+  })
+  const cancel = () => task.cancel()
+  signal?.addEventListener('abort', cancel, { once: true })
+  try {
+    await task.promise
+    if (signal?.aborted) return
+    canvas.width = buffer.width
+    canvas.height = buffer.height
+    canvas.getContext('2d')?.drawImage(buffer, 0, 0)
+  } catch (error) {
+    if (!signal?.aborted) throw error
+  } finally {
+    signal?.removeEventListener('abort', cancel)
+  }
 }
 
 function dataUrlBytes(dataUrl: string) {

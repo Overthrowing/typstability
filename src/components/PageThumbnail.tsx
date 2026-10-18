@@ -17,10 +17,9 @@ export function PageThumbnail({ page, pdf }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !pdf || page.sourceIndex === null) return
-    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, scale).then(() => {
-      canvas.style.width = '100%'
-      canvas.style.height = '100%'
-    }).catch(() => undefined)
+    const controller = new AbortController()
+    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, scale, controller.signal).catch(() => undefined)
+    return () => controller.abort()
   }, [page.sourceIndex, pdf, scale])
 
   return (
