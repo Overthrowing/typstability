@@ -1,3 +1,4 @@
+import { InspectorPanel } from './InspectorPanel'
 import { Trash2, X } from 'lucide-react'
 import type { TypstElement } from '../types'
 import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
@@ -13,7 +14,7 @@ type Props = {
 
 export function TypstInspector({ element, documentKey, sessions, onSourceChange, onDelete, onClose }: Props) {
   return (
-    <aside className="inspector">
+    <InspectorPanel label="Text box editor">
       <header className="inspector-header">
         <div>
           <strong>Text box</strong>
@@ -39,6 +40,6 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
           <Trash2 size={14} /> Delete box
         </button>
       </div>
-    </aside>
+    </InspectorPanel>
   )
 }

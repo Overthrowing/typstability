@@ -1,3 +1,4 @@
+import { InspectorPanel } from './InspectorPanel'
 import { X } from 'lucide-react'
 import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
 
@@ -12,7 +13,7 @@ type Props = {
 
 export function PreludeInspector({ source, documentKey, sessions, error, onChange, onClose }: Props) {
   return (
-    <aside className="inspector">
+    <InspectorPanel label="Shared styles editor">
       <header className="inspector-header">
         <div>
           <strong>Shared styles</strong>
@@ -35,6 +36,6 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
       <div className="inspector-footer">
         <span>Define reusable styles and functions here.</span>
       </div>
-    </aside>
+    </InspectorPanel>
   )
 }
