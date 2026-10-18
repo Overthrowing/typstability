@@ -17,7 +17,7 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
       <header className="inspector-header">
         <div>
           <strong>Shared styles</strong>
-          <span>Typst prelude · applies to all text boxes</span>
+          <span>Applies to every text box</span>
         </div>
         <button className="icon-button" onClick={onClose} title="Close prelude" aria-label="Close prelude">
           <X size={16} />
@@ -33,9 +33,6 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
         onChange={onChange}
         placeholder={'#let note(body) = block(\n  inset: 8pt,\n  fill: luma(95%),\n  body,\n)'}
       />
-      <div className="inspector-footer">
-        <span>Define reusable styles and functions here.</span>
-      </div>
     </InspectorPanel>
   )
 }

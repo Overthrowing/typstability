@@ -33,13 +33,8 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
         value={element.source}
         onChange={onSourceChange}
         placeholder="Write text or Typst markup…"
+        footerAction={<button className="icon-button delete-source" onClick={onDelete} title="Delete text box" aria-label="Delete text box"><Trash2 size={15} /></button>}
       />
-      <div className="inspector-footer">
-        <span>Preview updates as you type.</span>
-        <button className="danger-button" onClick={onDelete}>
-          <Trash2 size={14} /> Delete box
-        </button>
-      </div>
     </InspectorPanel>
   )
 }

@@ -438,7 +438,7 @@ function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (busy || library.libraryOpen) return
       const target = event.target as HTMLElement
-      const editing = target.isContentEditable || !!target.closest('textarea, input, .cm-editor')
+      const editing = target.isContentEditable || !!target.closest('textarea, input, select, .inspector')
       if (!editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) documentHistory.redo()

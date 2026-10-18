@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlignLeft, Search } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { AlignLeft, Keyboard, Search } from 'lucide-react'
 import { basicSetup } from 'codemirror'
 import { Annotation, Compartment, EditorState, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, placeholder as editorPlaceholder } from '@codemirror/view'
@@ -21,6 +21,7 @@ type Props = {
   label: string
   placeholder: string
   onChange: (source: string) => void
+  footerAction?: ReactNode
 }
 
 const externalChange = Annotation.define<boolean>()
@@ -38,7 +39,7 @@ const editorLayout = EditorView.theme({
 // Use the parser/editing services without stacking the language's fixed light palette.
 const typstLanguage = typst_lezer().language
 
-export function TypstCodeEditor({ documentKey, sessions, value, label, placeholder, onChange }: Props) {
+export function TypstCodeEditor({ documentKey, sessions, value, label, placeholder, onChange, footerAction }: Props) {
   const { theme, editorTheme, setEditorTheme } = useTheme()
   const selectedTheme = resolveEditorTheme(editorTheme, theme)
   const [colorScheme] = useState(() => new Compartment())
@@ -143,20 +144,31 @@ export function TypstCodeEditor({ documentKey, sessions, value, label, placehold
   return (
     <div className="typst-code-editor">
       <div className="source-toolbar">
-        <span className="source-label">{label}</span>
-        <div>
-          <button type="button" className="icon-button" aria-label="Find in source" title="Find / replace (Ctrl/Cmd+F)" onClick={() => { if (editor.current) openSearchPanel(editor.current) }}><Search size={14} /></button>
-          <button type="button" className="format-button" disabled={isFormatting} onClick={() => void runFormat()} title="Format source (Shift+Alt+F)"><AlignLeft size={14} />{isFormatting ? 'Formatting…' : 'Format'}</button>
-        </div>
-      </div>
-      <label className="source-theme">
-        <span>Editor theme</span>
-        <select value={editorTheme} onChange={(event) => setEditorTheme(event.target.value as EditorThemePreference)}>
+        <select className="source-theme" aria-label="Editor theme" title="Editor theme" value={editorTheme} onChange={(event) => setEditorTheme(event.target.value as EditorThemePreference)}>
           {editorThemeOptions.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
         </select>
-      </label>
+        <div className="source-actions">
+          <button type="button" className="icon-button" aria-label="Find in source" title="Find / replace (Ctrl/Cmd+F)" onClick={() => { if (editor.current) openSearchPanel(editor.current) }}><Search size={15} /></button>
+          <button type="button" className="format-button" disabled={isFormatting} onClick={() => void runFormat()} title="Format source (Shift+Alt+F)"><AlignLeft size={15} />{isFormatting ? 'Formatting…' : 'Format'}</button>
+        </div>
+      </div>
       <div className="source-editor" ref={host} />
-      <div className="source-help" role="status">{message || 'Ctrl+Space suggestions · Esc then Tab to leave editor'}</div>
+      <div className="source-footer">
+        <span className="source-status" role="status">{message || 'Live preview'}</span>
+        <details className="source-shortcuts">
+          <summary aria-label="Editor keyboard shortcuts" title="Keyboard shortcuts"><Keyboard size={16} /></summary>
+          <div>
+            <strong>Keyboard shortcuts</strong>
+            <dl>
+              <dt>Suggestions</dt><dd>Ctrl + Space</dd>
+              <dt>Find / replace</dt><dd>Ctrl / ⌘ + F</dd>
+              <dt>Format</dt><dd>Shift + Alt + F</dd>
+              <dt>Leave editor</dt><dd>Esc, then Tab</dd>
+            </dl>
+          </div>
+        </details>
+        {footerAction}
+      </div>
     </div>
   )
 }
