@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlignLeft, Search } from 'lucide-react'
 import { basicSetup } from 'codemirror'
-import { Annotation, EditorState, StateEffect, Transaction } from '@codemirror/state'
+import { Annotation, Compartment, EditorState, StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, keymap, placeholder as editorPlaceholder } from '@codemirror/view'
 import { indentWithTab, isolateHistory } from '@codemirror/commands'
-import { indentUnit } from '@codemirror/language'
+import { HighlightStyle, indentUnit, syntaxHighlighting } from '@codemirror/language'
+import { tags } from '@lezer/highlight'
+import { monokai } from '@uiw/codemirror-theme-monokai'
 import { openSearchPanel } from '@codemirror/search'
-import { typst_lezer, typstLanguageData } from 'codemirror-lang-typst/lezer'
+import { typst_lezer, typstLanguageData, typstTags, typstLezerIndentService, typstLezerListKeymap, typstLezerFoldService, typstLezerLinter } from 'codemirror-lang-typst/lezer'
 import { formatTypst } from '../typst/formatter'
+import { useTheme } from '../lib/theme'
 
 type EditorSession = { state: EditorState; scrollTop: number }
 export type EditorSessions = Map<string, EditorSession>
@@ -21,34 +24,61 @@ type Props = {
 }
 
 const externalChange = Annotation.define<boolean>()
-const theme = EditorView.theme({
-  '&': { height: '100%', fontSize: '12px', color: '#243c40' },
+const editorTheme = EditorView.theme({
+  '&': { height: '100%', fontSize: '12px', color: 'var(--code-ink)', backgroundColor: 'var(--code-bg)' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, monospace', lineHeight: '1.75' },
-  '.cm-content': { padding: '12px 0', caretColor: '#087f8c' },
+  '.cm-content': { padding: '12px 0', caretColor: 'var(--code-caret)' },
   '.cm-line': { padding: '0 10px' },
-  '.cm-gutters': { background: '#f5faf9', color: '#849b9e', borderRight: '1px solid #e0eceb' },
-  '.cm-activeLine, .cm-activeLineGutter': { background: '#edf7f6' },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { background: '#c5e9e8' },
-  '&.cm-focused .cm-matchingBracket': { background: '#bce5e5', outline: '1px solid #70b8bd' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#087f8c' },
-  '.cm-tooltip': { border: '1px solid #c8dedc', borderRadius: '6px', background: '#fff' },
-  '.cm-tooltip-autocomplete > ul > li[aria-selected]': { background: '#087f8c', color: '#fff' },
-  '.cm-panels': { background: '#f0f7f6', color: '#243c40' },
+  '.cm-gutters': { background: 'var(--code-gutter)', color: 'var(--subtle)', borderRight: '1px solid var(--line)' },
+  '.cm-activeLine, .cm-activeLineGutter': { background: 'var(--code-active)' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { background: 'var(--code-selection)' },
+  '&.cm-focused .cm-matchingBracket': { background: 'var(--code-match)', outline: '1px solid var(--accent-border)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--code-caret)' },
+  '.cm-tooltip': { border: '1px solid var(--line-strong)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--ink)' },
+  '.cm-tooltip-autocomplete > ul > li[aria-selected]': { background: 'var(--accent)', color: 'var(--on-accent)' },
+  '.cm-panels': { background: 'var(--chrome)', color: 'var(--ink)' },
   '.cm-search': { whiteSpace: 'normal' },
   '.cm-search input': { maxWidth: '145px' },
-  '.cm-placeholder': { color: '#859a9d' },
+  '.cm-placeholder': { color: 'var(--subtle)' },
 })
 
+const syntaxColors = syntaxHighlighting(HighlightStyle.define([
+  { tag: [tags.keyword, tags.null, tags.atom], class: 'tok-keyword' },
+  { tag: tags.function(tags.variableName), class: 'tok-function' },
+  { tag: [tags.number, tags.bool], class: 'tok-number' },
+  { tag: [tags.string, tags.monospace], class: 'tok-string' },
+  { tag: tags.comment, class: 'tok-comment' },
+  { tag: [typstTags.interpolated, typstTags.mathDelimiter, typstTags.listMarker, tags.link, tags.url, tags.escape, tags.labelName], class: 'tok-meta' },
+  { tag: tags.invalid, class: 'tok-invalid' },
+  { tag: tags.heading, class: 'tok-heading' },
+  { tag: tags.strong, class: 'tok-strong' },
+  { tag: tags.emphasis, class: 'tok-emphasis' },
+  { tag: [tags.punctuation, tags.operator], class: 'tok-punctuation' },
+  { tag: [tags.variableName, tags.propertyName], class: 'tok-variable' },
+]))
+
+// Keep the language's parser and editing services, while letting the selected
+// editor theme own highlighting instead of stacking its fixed light palette.
+const typstLanguage = typst_lezer().language
+const monokaiTypst = [monokai, syntaxHighlighting(HighlightStyle.define([
+  { tag: typstTags.mathDelimiter, color: '#E6DB74' },
+  { tag: typstTags.listMarker, color: '#F92672' },
+  { tag: typstTags.interpolated, color: '#66D9EF' },
+]))]
+const lightTheme = [EditorView.theme({}, { dark: false }), syntaxColors]
+
 export function TypstCodeEditor({ documentKey, sessions, value, label, placeholder, onChange }: Props) {
+  const { theme } = useTheme()
+  const [colorScheme] = useState(() => new Compartment())
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<EditorView | null>(null)
-  const latest = useRef({ value, onChange })
+  const latest = useRef({ value, onChange, theme })
   const formatting = useRef(false)
   const [isFormatting, setIsFormatting] = useState(false)
   const [message, setMessage] = useState('')
 
-  useEffect(() => { latest.current = { value, onChange } }, [value, onChange])
+  useEffect(() => { latest.current = { value, onChange, theme } }, [value, onChange, theme])
 
   const runFormat = useCallback(async () => {
     const view = editor.current
@@ -85,12 +115,17 @@ export function TypstCodeEditor({ documentKey, sessions, value, label, placehold
     if (!host.current) return
     const extensions = [
       basicSetup,
-      typst_lezer(),
+      typstLanguage,
+      typstLezerIndentService,
+      typstLezerListKeymap,
+      typstLezerFoldService,
+      typstLezerLinter,
       // Typst uses double quotes for strings; apostrophes in prose should stay single.
       typstLanguageData.of({ closeBrackets: { brackets: ['(', '[', '{', '"'] } }),
       indentUnit.of('  '),
       EditorView.lineWrapping,
-      theme,
+      editorTheme,
+      colorScheme.of(latest.current.theme === 'dark' ? monokaiTypst : lightTheme),
       editorPlaceholder(placeholder),
       EditorView.contentAttributes.of({ 'aria-label': label, spellcheck: 'false' }),
       keymap.of([
@@ -118,7 +153,11 @@ export function TypstCodeEditor({ documentKey, sessions, value, label, placehold
       editor.current = null
       view.destroy()
     }
-  }, [documentKey, sessions, label, placeholder, runFormat])
+  }, [documentKey, sessions, label, placeholder, runFormat, colorScheme])
+
+  useEffect(() => {
+    editor.current?.dispatch({ effects: colorScheme.reconfigure(theme === 'dark' ? monokaiTypst : lightTheme) })
+  }, [theme, colorScheme])
 
   useEffect(() => {
     const view = editor.current

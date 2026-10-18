@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Copy, FileText, FileUp, FolderOpen, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import type { ProjectSummary } from '../lib/storage'
 import { ActionMenu } from './ActionMenu'
+import { ThemeToggle } from './ThemeToggle'
 
 type Props = {
   projects: ProjectSummary[]
@@ -45,7 +46,7 @@ export function ProjectLibrary(props: Props) {
   const [dialog, setDialog] = useState<DialogAction | null>(null)
   const projects = props.projects.filter((project) => project.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   return <main className="project-library">
-    <div className="library-topbar"><a className="library-brand" href="#" onClick={(event) => { event.preventDefault(); setQuery('') }}><img className="app-logo" src={`${import.meta.env.BASE_URL}typstability-logo.png`} alt="" />Typstability</a><span className="local-badge"><span />Private by design. Saved here.</span></div>
+    <div className="library-topbar"><a className="library-brand" href="#" onClick={(event) => { event.preventDefault(); setQuery('') }}><img className="app-logo" src={`${import.meta.env.BASE_URL}typstability-logo.png`} alt="" />Typstability</a><div className="library-utilities"><span className="local-badge"><span />Private by design. Saved here.</span><ThemeToggle /></div></div>
     <section className="library-content" aria-label="Project library">
       <div className="library-heading"><div><p className="eyebrow">YOUR WORKSPACE</p><h1>Your projects</h1><p className="library-intro">Open a PDF, start a blank document, or pick up where you left off.</p></div>
         {props.activeId && <button className="secondary-button" onClick={props.onClose} disabled={props.busy}>Continue editing <ArrowRight size={16} /></button>}

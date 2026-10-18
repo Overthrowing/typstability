@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import type { Tool } from '../types'
 import { ActionMenu } from './ActionMenu'
+import { ThemeToggle } from './ThemeToggle'
 
 type Props = {
   name: string
@@ -53,6 +54,7 @@ export function Toolbar(props: Props) {
           {props.saveStatus === 'Saved' ? 'Saved in this browser' : props.saveStatus}
         </span>
       </div>
+      <ThemeToggle />
       <ActionMenu label={props.exporting ? 'Exporting…' : 'Export'} primary disabled={props.exporting}
         icon={props.exporting ? <RotateCcw className="spin" size={16} /> : <Download size={16} />}
         items={[
