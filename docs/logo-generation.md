@@ -1,8 +1,13 @@
 # Typstability logo
 
-Generated with the built-in image generation tool, with a transparent background.
+The current mark is based on the user's supplied teal lowercase “t” inside a text-selection frame. Its black background was removed with the built-in image generation tool (background-extraction edit, transparent output).
+
 Asset: `public/typstability-logo.png`. Used as the app mark and PNG favicon.
 
-## Final prompt
+## Final edit prompt
 
-Use case: logo-brand. Asset type: square web application logo and favicon for Typstability, a Typst text-box and PDF annotation editor. Primary request: one extremely minimalist symbol combining a beautifully typeset capital T with an editable text-box on a document. Design a bold dark-ink serif T inside a simple indigo rectangular text selection frame, with two small square resize handles at opposite corners; the rectangular frame itself subtly suggests the page of a document. Flat vector-like raster artwork, crisp geometric edges, thick clean strokes, balanced optical weight, generous negative space, centered square composition. No words beyond the single T, no pencil, no extra icons, no shadows, no gradients, no fine details. Must remain legible at 16x16 pixels. Transparent background. One icon only, no mockup or presentation sheet.
+Use case: background-extraction. Edit target: the supplied Typstability teal logo. Remove ONLY the solid black background everywhere, including the interior of the frame and the two square handle holes, replacing it with real alpha transparency. Preserve the exact teal color (approximately #229ca8), flat filled silhouette, italic lowercase t shape, rectangular selection frame, two opposite square handles, all proportions and positioning. No redesign, shadows, gradients, outlines, extra text, or background. Output a clean transparent PNG logo for a website and favicon.
+
+## Palette
+
+The mark's teal is used for canvas selection handles. The light interface uses a darker teal (`#087f8c`) for readable text and primary buttons, with pale teal selection surfaces and neutral green-gray backgrounds.

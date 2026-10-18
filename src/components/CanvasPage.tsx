@@ -139,7 +139,7 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
           ref={shapeRef as React.RefObject<Konva.Image>}
           image={image ?? undefined}
           {...common}
-          stroke={selected ? '#4d63ff' : undefined}
+          stroke={selected ? '#229ca8' : undefined}
           strokeWidth={selected ? 1 : 0}
         />
       ) : (
@@ -185,7 +185,7 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
             ref={shapeRef as React.RefObject<Konva.Rect>}
             {...common}
             fill="rgba(0, 0, 0, 0.001)"
-            stroke={selected ? '#4d63ff' : image ? undefined : '#b7b5ad'}
+            stroke={selected ? '#229ca8' : image ? undefined : '#b7b5ad'}
             dash={image ? undefined : [4, 4]}
             strokeWidth={selected ? 1 : undefined}
           />
@@ -196,9 +196,9 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
           ref={transformerRef}
           rotateEnabled={false}
           flipEnabled={false}
-          borderStroke="#4d63ff"
+          borderStroke="#229ca8"
           anchorFill="#ffffff"
-          anchorStroke="#4d63ff"
+          anchorStroke="#229ca8"
           anchorSize={7}
           boundBoxFunc={(oldBox, newBox) =>
             newBox.width < 24 || newBox.height < 18 ? oldBox : newBox
@@ -385,7 +385,7 @@ export function CanvasPage({
             <Rect
               {...box}
               fill="rgba(77, 99, 255, 0.08)"
-              stroke="#4d63ff"
+              stroke="#229ca8"
               strokeWidth={1}
               dash={[6, 4]}
               listening={false}
