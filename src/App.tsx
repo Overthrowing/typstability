@@ -6,6 +6,7 @@ import { PageThumbnail } from './components/PageThumbnail'
 import { PreludeInspector } from './components/PreludeInspector'
 import { Toolbar } from './components/Toolbar'
 import { TypstInspector } from './components/TypstInspector'
+import type { EditorSessions } from './components/TypstCodeEditor'
 import { useHistoryState } from './lib/history'
 import { createPdfProxy, downloadBytes, exportPdf, readPdf } from './lib/pdf'
 import { useProjects } from './lib/use-projects'
@@ -59,6 +60,7 @@ function App() {
   const documentScrollRef = useRef<HTMLElement>(null)
   const projectInputRef = useRef<HTMLInputElement>(null)
   const [readingFile, setReadingFile] = useState(false)
+  const [editorSessions] = useState<EditorSessions>(() => new Map())
   const generation = useRef(0)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const compileBurstStartRef = useRef<number | null>(null)
@@ -436,7 +438,7 @@ function App() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (busy || library.libraryOpen) return
       const target = event.target as HTMLElement
-      const editing = target.matches('textarea, input')
+      const editing = target.isContentEditable || !!target.closest('textarea, input, .cm-editor')
       if (!editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) documentHistory.redo()
@@ -583,6 +585,8 @@ function App() {
         {!preludeOpen && selectedTypst && selection && (
           <TypstInspector
             element={selectedTypst}
+            documentKey={`${library.activeId}:box:${selectedTypst.id}`}
+            sessions={editorSessions}
             onSourceChange={(source) => updateElement(selection.pageId, { ...selectedTypst, source })}
             onDelete={deleteSelection}
             onClose={() => setSelection(null)}
@@ -591,6 +595,8 @@ function App() {
         {preludeOpen && (
           <PreludeInspector
             source={document.prelude}
+            documentKey={`${library.activeId}:prelude`}
+            sessions={editorSessions}
             error={preludeError}
             onChange={(prelude) => updateDocument((current) => ({ ...current, prelude }))}
             onClose={() => setPreludeOpen(false)}

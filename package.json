@@ -11,9 +11,18 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "6.20.3",
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.14",
     "@myriaddreamin/typst-ts-renderer": "latest",
     "@myriaddreamin/typst-ts-web-compiler": "latest",
     "@myriaddreamin/typst.ts": "latest",
+    "@typstyle/typstyle-wasm-bundler": "0.15.1",
+    "codemirror": "6.0.2",
+    "codemirror-lang-typst": "0.6.0",
     "konva": "latest",
     "lucide-react": "latest",
     "pdf-lib": "latest",
@@ -38,6 +47,7 @@
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vite": "latest",
+    "vite-plugin-wasm": "3.6.0",
     "vitest": "latest"
   }
 }

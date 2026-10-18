@@ -1,13 +1,16 @@
 import { X } from 'lucide-react'
+import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
 
 type Props = {
   source: string
+  documentKey: string
+  sessions: EditorSessions
   error?: string
   onChange: (source: string) => void
   onClose: () => void
 }
 
-export function PreludeInspector({ source, error, onChange, onClose }: Props) {
+export function PreludeInspector({ source, documentKey, sessions, error, onChange, onClose }: Props) {
   return (
     <aside className="inspector">
       <header className="inspector-header">
@@ -20,14 +23,14 @@ export function PreludeInspector({ source, error, onChange, onClose }: Props) {
         </button>
       </header>
       {error && <div className="compile-error">{error}</div>}
-      <label className="source-label" htmlFor="typst-prelude">Prelude source</label>
-      <textarea
-        id="typst-prelude"
-        className="source-editor"
+      <TypstCodeEditor
+        key={documentKey}
+        documentKey={documentKey}
+        sessions={sessions}
+        label="Prelude source"
         value={source}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
         placeholder={'#let note(body) = block(\n  inset: 8pt,\n  fill: luma(95%),\n  body,\n)'}
-        spellCheck={false}
       />
       <div className="inspector-footer">
         <span>Define reusable styles and functions here.</span>

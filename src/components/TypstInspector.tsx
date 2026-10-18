@@ -1,14 +1,17 @@
 import { Trash2, X } from 'lucide-react'
 import type { TypstElement } from '../types'
+import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
 
 type Props = {
   element: TypstElement
+  documentKey: string
+  sessions: EditorSessions
   onSourceChange: (source: string) => void
   onDelete: () => void
   onClose: () => void
 }
 
-export function TypstInspector({ element, onSourceChange, onDelete, onClose }: Props) {
+export function TypstInspector({ element, documentKey, sessions, onSourceChange, onDelete, onClose }: Props) {
   return (
     <aside className="inspector">
       <header className="inspector-header">
@@ -21,14 +24,14 @@ export function TypstInspector({ element, onSourceChange, onDelete, onClose }: P
         </button>
       </header>
       {element.error && <div className="compile-error">{element.error}</div>}
-      <label className="source-label" htmlFor="typst-source">Text & Typst source</label>
-      <textarea
-        id="typst-source"
-        className="source-editor"
+      <TypstCodeEditor
+        key={documentKey}
+        documentKey={documentKey}
+        sessions={sessions}
+        label="Text & Typst source"
         value={element.source}
-        onChange={(event) => onSourceChange(event.target.value)}
+        onChange={onSourceChange}
         placeholder="Write text or Typst markup…"
-        spellCheck={false}
       />
       <div className="inspector-footer">
         <span>Preview updates as you type.</span>
