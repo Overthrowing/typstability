@@ -22,11 +22,28 @@ it('starts collapsed, counts diagnostic headers rather than hints, and retains t
   expect(details.open).toBe(false)
 })
 
-it('handles runtime errors and resets to collapsed after errors clear', () => {
-  const view = render(<CompileErrors error="initialize runtime: Could not load bundled font" />)
+it('keeps the same collapsed row at zero with neutral styling as errors appear and clear', () => {
+  const view = render(<CompileErrors />)
+  const details = view.container.querySelector('details')!
+  expect(screen.getByLabelText('0 errors')).toHaveTextContent('Errors0')
+  expect(details).not.toHaveClass('has-errors')
+  expect(details.open).toBe(false)
+  view.rerender(<CompileErrors error="initialize runtime: Could not load bundled font" />)
+  expect(screen.getByLabelText('1 error')).toBeInTheDocument()
+  expect(details).toHaveClass('has-errors')
+  view.rerender(<CompileErrors />)
+  expect(view.container.querySelector('details')).toBe(details)
+  expect(details.open).toBe(false)
+  expect(screen.getByLabelText('0 errors')).toBeInTheDocument()
+  expect(details).not.toHaveClass('has-errors')
+})
+
+it('preserves an expanded disclosure when errors clear and return', () => {
+  const view = render(<CompileErrors error="incremental compile: incomplete input" />)
   fireEvent.click(screen.getByLabelText('1 error'))
   view.rerender(<CompileErrors />)
-  expect(view.container).toBeEmptyDOMElement()
+  expect(view.container.querySelector('details')!.open).toBe(true)
+  expect(screen.getByText('No errors.')).toBeInTheDocument()
   view.rerender(<CompileErrors error="incremental compile: incomplete input" />)
-  expect(view.container.querySelector('details')!.open).toBe(false)
+  expect(view.container.querySelector('details')!.open).toBe(true)
 })
