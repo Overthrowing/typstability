@@ -24,18 +24,18 @@ worker.onerror = (event) => {
   pending.clear()
 }
 
-function compile(format: 'svg' | 'pdf', source: string, width: number, height: number, prelude: string) {
+function compile(format: 'svg' | 'pdf', source: string, width: number, height: number, prelude: string, topInset?: number, pageFill?: string) {
   return new Promise<string | Uint8Array>((resolve, reject) => {
     const id = ++nextId
     pending.set(id, { resolve, reject })
-    worker.postMessage({ id, format, source, width, height, prelude })
+    worker.postMessage({ id, format, source, width, height, prelude, topInset, pageFill })
   })
 }
 
-export async function compileTypstSvg(source: string, width: number, height: number, prelude = '') {
-  return compile('svg', source, width, height, prelude) as Promise<string>
+export async function compileTypstSvg(source: string, width: number, height: number, prelude = '', topInset?: number, pageFill?: string) {
+  return compile('svg', source, width, height, prelude, topInset, pageFill) as Promise<string>
 }
 
-export async function compileTypstPdf(source: string, width: number, height: number, prelude = '') {
-  return compile('pdf', source, width, height, prelude) as Promise<Uint8Array>
+export async function compileTypstPdf(source: string, width: number, height: number, prelude = '', topInset?: number, pageFill?: string) {
+  return compile('pdf', source, width, height, prelude, topInset, pageFill) as Promise<Uint8Array>
 }

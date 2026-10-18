@@ -7,12 +7,17 @@ A minimal, local-first PDF editor with Typst text boxes. Open a PDF, add images,
 
 ## Editing
 
-- Choose the **Typst** tool, then drag on a page to create a text box. The bundled Typst WebAssembly compiler keeps a long-lived incremental compilation session, so the preview updates as you type.
+- Choose the **Typst** tool, then drag on a page to create a text box—even a very small one. The bundled Typst WebAssembly compiler keeps a long-lived incremental compilation session, so the preview updates as you type.
+- Typst boxes start with a 4 pt top inset to protect tall first-line glyphs from clipping. Adjust **Top inset** in the box inspector, including setting it to 0 pt when desired; the value is preserved in editable PDF exports.
+- Boxes have a white background by default. Use `#set page(fill: rgb("#f5f0e6"))` in the Prelude for a shared fill, or enter a Typst fill expression in an individual box’s **Fill (Typst)** field. Enter `none` for transparency.
 - Use **Prelude** (`{ }`) to define document-wide Typst functions, variables, and styles shared by every text box.
-- Choose **Select** to resize a text box or drag it onto another page. Typst reflows incrementally while a box is resized instead of stretching the old preview.
+- Choose **Select** to resize a text box or image, or drag either onto another page. Typst reflows incrementally while a box is resized instead of stretching the old preview.
+- Paste images from the clipboard, drag image files onto a page to place them there, or use the image button. PNG, JPEG, WebP, and GIF are supported; WebP and GIF are converted locally to PNG for PDF export.
 - Choose **Pen** to draw with a configurable color and radius. Choose **Eraser** to remove any pen stroke that touches its configurable eraser radius.
 - Inserted blank pages participate in editing and export exactly like pages opened from a PDF.
-- The left rail renders miniature PDF pages and can be collapsed with the panel button above the thumbnails.
+- The left rail renders miniature PDF pages. Drag thumbnails to reorder pages, or collapse the rail with the panel button above them.
+- Zoom from 40% to 500% using the toolbar controls.
+- Exported PDFs contain visible, printable annotations for Typst boxes, images, and pen strokes, plus embedded Typstability metadata. Open an exported PDF again to continue editing the blocks and shared prelude. PDF tools that flatten or discard annotations or private metadata can remove this editability.
 
 ## Local development
 

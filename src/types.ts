@@ -21,10 +21,15 @@ export type TypstElement = {
   width: number
   height: number
   source: string
+  topInset?: number
+  pageFill?: string
   previewSvg?: string
+  previewSource?: string
   previewWidth?: number
   previewHeight?: number
   previewPrelude?: string
+  previewTopInset?: number
+  previewPageFill?: string
   error?: string
 }
 

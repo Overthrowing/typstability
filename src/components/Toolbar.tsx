@@ -6,6 +6,7 @@ import {
   ImagePlus,
   MousePointer2,
   PenLine,
+  Plus,
   Redo2,
   RotateCcw,
   Type,
@@ -42,13 +43,14 @@ type Props = {
   onPrelude: () => void
 }
 
-const ToolButton = ({ active, title, onClick, children }: {
+const ToolButton = ({ active, wide, title, onClick, children }: {
   active?: boolean
+  wide?: boolean
   title: string
   onClick: () => void
   children: React.ReactNode
 }) => (
-  <button className={`tool-button ${active ? 'is-active' : ''}`} title={title} onClick={onClick}>
+  <button className={`tool-button ${active ? 'is-active' : ''} ${wide ? 'add-page-button' : ''}`} title={title} aria-label={title} onClick={onClick}>
     {children}
   </button>
 )
@@ -79,7 +81,7 @@ export function Toolbar(props: Props) {
         <ToolButton active={props.tool === 'eraser'} title="Erase pen strokes" onClick={() => props.onTool('eraser')}>
           <Eraser size={17} />
         </ToolButton>
-        <ToolButton title="Insert blank page" onClick={props.onBlankPage}><FilePlus2 size={17} /></ToolButton>
+        <ToolButton wide title="Insert blank page" onClick={props.onBlankPage}><Plus size={18} /><span>Page</span></ToolButton>
         <ToolButton active={props.preludeOpen} title="Edit Typst prelude" onClick={props.onPrelude}>
           <Braces size={17} />
         </ToolButton>
