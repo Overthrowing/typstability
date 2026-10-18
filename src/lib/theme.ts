@@ -1,8 +1,14 @@
 import { createContext, useContext } from 'react'
+import type { EditorThemePreference } from './editor-theme'
 
 export type Theme = 'light' | 'dark'
 export const THEME_KEY = 'typstability-theme'
-export const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({ theme: 'light', toggleTheme: () => {} })
+export const ThemeContext = createContext<{
+  theme: Theme
+  toggleTheme: () => void
+  editorTheme: EditorThemePreference
+  setEditorTheme: (theme: EditorThemePreference) => void
+}>({ theme: 'light', toggleTheme: () => {}, editorTheme: 'auto', setEditorTheme: () => {} })
 export const useTheme = () => useContext(ThemeContext)
 
 export function readThemePreference(): Theme | null {

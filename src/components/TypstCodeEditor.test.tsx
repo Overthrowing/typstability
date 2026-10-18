@@ -4,6 +4,9 @@ import { EditorView } from '@codemirror/view'
 import { undo } from '@codemirror/commands'
 import { insertBracket } from '@codemirror/autocomplete'
 import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
+import { ThemeProvider } from './ThemeProvider'
+import { ThemeToggle } from './ThemeToggle'
+import { EDITOR_THEME_KEY } from '../lib/editor-theme'
 import { formatTypst } from '../typst/formatter'
 
 vi.mock('../typst/formatter', () => ({ formatTypst: vi.fn() }))
@@ -11,7 +14,7 @@ beforeAll(() => {
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList
   Range.prototype.getBoundingClientRect = () => new DOMRect()
 })
-afterEach(() => { cleanup(); vi.resetAllMocks() })
+afterEach(() => { cleanup(); localStorage.clear(); vi.resetAllMocks() })
 
 function mount(value = '', sessions: EditorSessions = new Map(), documentKey = 'box-a') {
   const onChange = vi.fn()
@@ -22,6 +25,40 @@ function mount(value = '', sessions: EditorSessions = new Map(), documentKey = '
 }
 
 describe('Typst code editor', () => {
+  it('follows site appearance by default and retains an explicit theme, cursor and undo history', () => {
+    const props = { value: 'Hello', sessions: new Map(), documentKey: 'theme-test', onChange: vi.fn(), label: 'Typst source', placeholder: 'Write Typst' }
+    const tree = <ThemeProvider><ThemeToggle /><TypstCodeEditor {...props} /></ThemeProvider>
+    const first = render(tree)
+    const view = EditorView.findFromDOM(first.container.querySelector('.cm-editor')!)!
+    const initiallyDark = view.state.facet(EditorView.darkTheme)
+    expect(screen.getByRole('combobox', { name: 'Editor theme' })).toHaveValue('auto')
+    fireEvent.click(screen.getByRole('button', { name: /Switch to .* mode/ }))
+    expect(view.state.facet(EditorView.darkTheme)).toBe(!initiallyDark)
+    act(() => view.dispatch({ changes: { from: 5, insert: '!' }, selection: { anchor: 6 } }))
+    for (const [theme, dark] of [['github-light', false], ['github-dark', true], ['catppuccin-latte', false], ['catppuccin-frappe', true], ['catppuccin-macchiato', true], ['catppuccin-mocha', true], ['monokai-light', false], ['monokai-dark', true]] as const) {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Editor theme' }), { target: { value: theme } })
+      expect(view.state.facet(EditorView.darkTheme)).toBe(dark)
+      expect(view.state.doc.toString()).toBe('Hello!')
+      expect(view.state.selection.main.head).toBe(6)
+    }
+    expect(props.onChange).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /Switch to .* mode/ }))
+    expect(view.state.facet(EditorView.darkTheme)).toBe(true)
+    act(() => { undo(view) })
+    expect(view.state.doc.toString()).toBe('Hello')
+    expect(localStorage.getItem(EDITOR_THEME_KEY)).toBe('monokai-dark')
+    first.unmount()
+    render(tree)
+    expect(screen.getByRole('combobox', { name: 'Editor theme' })).toHaveValue('monokai-dark')
+  })
+
+  it('falls back to GitHub following the site for an unknown saved theme', () => {
+    localStorage.setItem(EDITOR_THEME_KEY, 'retired-theme')
+    const props = { value: '', sessions: new Map(), documentKey: 'fallback', onChange: vi.fn(), label: 'Source', placeholder: '' }
+    render(<ThemeProvider><TypstCodeEditor {...props} /></ThemeProvider>)
+    expect(screen.getByRole('combobox', { name: 'Editor theme' })).toHaveValue('auto')
+  })
+
   it('pairs parentheses without pairing apostrophes in prose', () => {
     const { view } = mount('#text')
     act(() => {
