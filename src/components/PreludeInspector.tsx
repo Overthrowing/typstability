@@ -24,7 +24,6 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
           <X size={16} />
         </button>
       </header>
-      <CompileErrors key={documentKey} error={error} />
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}
@@ -34,6 +33,7 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
         onChange={onChange}
         placeholder={'#let note(body) = block(\n  inset: 8pt,\n  fill: luma(95%),\n  body,\n)'}
       />
+      <CompileErrors key={`errors:${documentKey}`} error={error} />
     </InspectorPanel>
   )
 }

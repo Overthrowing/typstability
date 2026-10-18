@@ -25,7 +25,6 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
           <X size={16} />
         </button>
       </header>
-      <CompileErrors key={documentKey} error={element.error} />
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}
@@ -36,6 +35,7 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
         placeholder="Write text or Typst markup…"
         footerAction={<button className="icon-button delete-source" onClick={onDelete} title="Delete text box" aria-label="Delete text box"><Trash2 size={15} /></button>}
       />
+      <CompileErrors key={`errors:${documentKey}`} error={element.error} />
     </InspectorPanel>
   )
 }
