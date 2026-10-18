@@ -178,12 +178,11 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 
 /* Contextual inspectors */
 .inspector { position: relative; z-index: 10; flex: 0 0 auto; min-width: 300px; max-width: calc(100vw - 360px); display: flex; flex-direction: column; padding: 0; border-left: 1px solid var(--line); background: var(--chrome); box-shadow: -4px 0 20px #20383b03; }
-.inspector-resizer { position: absolute; z-index: 12; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }
-.inspector-resizer::before { content: ''; position: absolute; left: 3px; top: calc(50% - 16px); width: 4px; height: 32px; border-radius: 3px; background: var(--line-strong); }
-.inspector-resizer::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .15s; }
-.inspector-resizer:hover::after, .inspector-resizer:focus-visible::after, .inspector.is-resizing .inspector-resizer::before { content: ''; position: absolute; left: 3px; top: calc(50% - 16px); width: 4px; height: 32px; border-radius: 3px; background: var(--line-strong); }
-.inspector-resizer::after { background: var(--accent); }
+.inspector-resizer { position: absolute; z-index: 12; top: 0; bottom: 0; left: -6px; width: 12px; cursor: col-resize; touch-action: none; }
+.inspector-resizer::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 3px; height: 28px; border-radius: 2px; background: var(--line-strong); transition: background .15s; }
+.inspector-resizer:hover::after, .inspector-resizer:focus-visible::after, .inspector.is-resizing .inspector-resizer::after { background: var(--accent); }
 .inspector-resizer:focus-visible { outline: none; }
+.inspector-resizer:focus-visible::after { outline: 2px solid var(--accent-border); outline-offset: 3px; }
 .inspector.is-resizing { user-select: none; }
 .inspector-header { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .inspector-header > div { display: flex; flex-direction: column; gap: 4px; }
