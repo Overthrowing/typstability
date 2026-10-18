@@ -155,7 +155,7 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .page-thumbnail:hover .thumbnail-delete, .page-thumbnail:focus-within .thumbnail-delete { opacity: 1; }
 .add-page-button { display: flex; justify-content: center; align-items: center; gap: 5px; width: 100%; padding: 9px 3px; border: 1px dashed var(--line-strong); border-radius: 7px; color: var(--muted); background: none; font-size: 10px; }
 .add-page-button:hover { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
-.document-scroll { min-width: 0; flex: 1; overflow: auto; scroll-behavior: smooth; background: var(--workspace); }
+.document-scroll { min-width: 0; flex: 1; overflow: auto; scrollbar-gutter: stable; scroll-behavior: smooth; background: var(--workspace); }
 
 .page-positioner { width: max-content; margin: 36px auto 44px; }
 .page-shell { position: relative; background: white; box-shadow: 0 3px 16px #20383b12, 0 0 0 1px #20383b08; }

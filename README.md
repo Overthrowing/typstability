@@ -8,7 +8,7 @@ A minimal, local-first PDF editor with Typst text boxes. Open a PDF, add images,
 ## Editing
 
 - Choose the **Text** tool, then drag on a page to create a text box. The bundled Typst WebAssembly compiler keeps a long-lived incremental compilation session, so the preview updates as you type.
-- Drag the editor sidebar’s left edge to make more room for source. Its width is remembered for text boxes and Shared styles. Double-click the divider to reset, or focus it and use the arrow keys. On narrow screens the editor docks below the page.
+- Drag the editor sidebar’s left edge to make more room for source. Its width is remembered for text boxes and Shared styles. Double-click the divider to reset, or focus it and use the arrow keys. On narrow screens the editor docks below the page. Resizing the sidebar fits the pages to the available width, up to your preferred zoom. Manual zoom overrides the fit until the next workspace resize.
 - The source editor includes bracket pairing, completions, search/replace, folding, and **Format** (`Shift+Alt+F`) powered by Typstyle. Formatting runs locally and can be undone.
 - **Editor theme** defaults to GitHub Light/Dark following the site appearance. Choose a fixed GitHub theme, Catppuccin Latte/Frappé/Macchiato/Mocha, or Monokai Light/Dark independently of the site. The preference is saved in this browser and shared by text boxes and Shared styles. GitHub and Monokai Dark use [uiw themes](https://github.com/uiwjs/react-codemirror); Catppuccin uses its [official CodeMirror port](https://github.com/catppuccin/codemirror). Monokai Light is a local light adaptation of the classic dark palette.
 - Use **Shared styles** (`{ }`) to define document-wide Typst functions, variables, and styles shared by every text box.

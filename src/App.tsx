@@ -7,6 +7,7 @@ import { PreludeInspector } from './components/PreludeInspector'
 import { Toolbar } from './components/Toolbar'
 import { TypstInspector } from './components/TypstInspector'
 import type { EditorSessions } from './components/TypstCodeEditor'
+import { useViewportZoom } from './lib/use-viewport-zoom'
 import { useHistoryState } from './lib/history'
 import { createPdfProxy, downloadBytes, exportPdf, readPdf } from './lib/pdf'
 import { useProjects } from './lib/use-projects'
@@ -45,7 +46,6 @@ function App() {
   const [selection, setSelection] = useState<Selection>(null)
   const [activePageId, setActivePageId] = useState<string | null>(null)
   const [tool, setTool] = useState<Tool>('select')
-  const [zoom, setZoom] = useState(0.9)
   const [penColor, setPenColor] = useState('#1f2328')
   const [penRadius, setPenRadius] = useState(2)
   const [eraserRadius, setEraserRadius] = useState(12)
@@ -80,6 +80,8 @@ function App() {
 
   const library = useProjects(document, loadDocument)
   const busy = library.busy || readingFile
+  const widestPage = Math.max(0, ...document.pages.map((page) => page.width))
+  const [zoom, setZoom] = useViewportZoom(documentScrollRef, widestPage, !library.libraryOpen && document.pages.length > 0)
 
   const activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
   const selectedElement = useMemo(() => {
