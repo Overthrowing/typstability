@@ -1,3 +1,4 @@
+import { CompileErrors } from './CompileErrors'
 import { InspectorPanel } from './InspectorPanel'
 import { X } from 'lucide-react'
 import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
@@ -23,7 +24,7 @@ export function PreludeInspector({ source, documentKey, sessions, error, onChang
           <X size={16} />
         </button>
       </header>
-      {error && <div className="compile-error">{error}</div>}
+      <CompileErrors key={documentKey} error={error} />
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}

@@ -1,3 +1,4 @@
+import { CompileErrors } from './CompileErrors'
 import { InspectorPanel } from './InspectorPanel'
 import { Trash2, X } from 'lucide-react'
 import type { TypstElement } from '../types'
@@ -24,7 +25,7 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
           <X size={16} />
         </button>
       </header>
-      {element.error && <div className="compile-error">{element.error}</div>}
+      <CompileErrors key={documentKey} error={element.error} />
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}
