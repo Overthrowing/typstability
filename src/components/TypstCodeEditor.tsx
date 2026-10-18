@@ -31,6 +31,9 @@ const editorLayout = EditorView.theme({
   '.cm-scroller': { overflow: 'auto', fontFamily: 'ui-monospace, SFMono-Regular, monospace', lineHeight: '1.75' },
   '.cm-content': { padding: '12px 0' },
   '.cm-line': { padding: '0 10px' },
+  // CodeMirror draws selection behind the text. Opaque active-line colors in
+  // third-party themes otherwise cover selections on the cursor's line.
+  '.cm-content[data-has-selection="true"] .cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-tooltip': { borderRadius: '6px' },
   '.cm-search': { whiteSpace: 'normal' },
   '.cm-search input': { maxWidth: '145px' },
@@ -99,7 +102,11 @@ export function TypstCodeEditor({ documentKey, sessions, value, label, placehold
       editorLayout,
       colorScheme.of(editorColorScheme(latest.current.selectedTheme)),
       editorPlaceholder(placeholder),
-      EditorView.contentAttributes.of({ 'aria-label': label, spellcheck: 'false' }),
+      EditorView.contentAttributes.of((view) => ({
+        'aria-label': label,
+        spellcheck: 'false',
+        'data-has-selection': String(view.state.selection.ranges.some((range) => !range.empty)),
+      })),
       keymap.of([
         { key: 'Shift-Alt-f', run: () => { void runFormat(); return true } },
         indentWithTab,

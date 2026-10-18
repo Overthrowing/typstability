@@ -25,6 +25,17 @@ function mount(value = '', sessions: EditorSessions = new Map(), documentKey = '
 }
 
 describe('Typst code editor', () => {
+  it('disables the active-line background for selected text and restores it for a caret', () => {
+    const { view } = mount('Select this text\nAnd this line')
+    expect(view.contentDOM).toHaveAttribute('data-has-selection', 'false')
+    act(() => view.dispatch({ selection: { anchor: 0, head: 6 } }))
+    expect(view.contentDOM).toHaveAttribute('data-has-selection', 'true')
+    act(() => view.dispatch({ selection: { anchor: 0, head: 25 } }))
+    expect(view.contentDOM).toHaveAttribute('data-has-selection', 'true')
+    act(() => view.dispatch({ selection: { anchor: 6 } }))
+    expect(view.contentDOM).toHaveAttribute('data-has-selection', 'false')
+  })
+
   it('follows site appearance by default and retains an explicit theme, cursor and undo history', () => {
     const props = { value: 'Hello', sessions: new Map(), documentKey: 'theme-test', onChange: vi.fn(), label: 'Typst source', placeholder: 'Write Typst' }
     const tree = <ThemeProvider><ThemeToggle /><TypstCodeEditor {...props} /></ThemeProvider>
