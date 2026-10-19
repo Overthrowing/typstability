@@ -1,8 +1,12 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 import { PDFDict, PDFDocument, PDFHexString, PDFName } from 'pdf-lib'
 import * as pdfjs from 'pdfjs-dist'
 import type { EditorDocument } from '../types'
 import { exportPdf, readPdf } from './pdf'
+
+// CI runs on Node 22, which lacks Promise.try used by the standard PDF.js build.
+vi.mock('pdfjs-dist', () => import('pdfjs-dist/legacy/build/pdf.mjs'))
 
 vi.mock('../typst/client', () => ({
   compileTypstPdf: async (_source: string, width: number, height: number) => {
@@ -20,11 +24,9 @@ function asFile(bytes: Uint8Array) {
 }
 
 describe('editable PDF round trip', () => {
-  // PDF.js spins up a worker and renders annotation appearances in this integration test.
-  // A cold, shared CI runner can take longer than Vitest's 5-second default.
   it('restores Typst source, prelude, image, and stroke without duplicating annotations', async () => {
     const cwd = (globalThis as typeof globalThis & { process: { cwd: () => string } }).process.cwd()
-    pdfjs.GlobalWorkerOptions.workerSrc = `file://${cwd}/node_modules/pdfjs-dist/build/pdf.worker.min.mjs`
+    pdfjs.GlobalWorkerOptions.workerSrc = `file://${cwd}/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs`
     const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=='
     const base = await PDFDocument.create()
     base.addPage([612, 792]).drawText('Original page', { x: 25, y: 750 })
@@ -84,5 +86,5 @@ describe('editable PDF round trip', () => {
     const editedPdf = await readPdf(asFile(await exportPdf(edited)))
     expect(editedPdf.pages[0].elements).toHaveLength(2)
     expect(editedPdf.pages[0].elements.find((element) => element.kind === 'typst')).toMatchObject({ source: 'Changed' })
-  }, 20_000)
+  })
 })
