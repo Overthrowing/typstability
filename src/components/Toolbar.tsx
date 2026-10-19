@@ -51,16 +51,9 @@ export function Toolbar(props: Props) {
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
         <span className={`save-status ${props.saveStatus === 'Save failed' ? 'save-error' : ''}`} role="status">
           {props.saveStatus === 'Saved' ? <Check size={12} /> : props.saveStatus === 'Save failed' ? <AlertCircle size={12} /> : <RotateCcw className="spin" size={11} />}
-          {props.saveStatus === 'Saved' ? 'Saved in this browser' : props.saveStatus}
+          <span className="save-status-label">{props.saveStatus === 'Saved' ? 'Saved in this browser' : props.saveStatus}</span>
         </span>
       </div>
-      <ThemeToggle />
-      <ActionMenu label={props.exporting ? 'Exporting…' : 'Export'} primary disabled={props.exporting}
-        icon={props.exporting ? <RotateCcw className="spin" size={16} /> : <Download size={16} />}
-        items={[
-          { label: 'PDF document', description: 'A finished PDF to share or print.', icon: <FileText size={20} />, onSelect: props.onExport },
-          { label: 'Editable project', description: 'A .typstability backup to keep editing later.', icon: <FileDown size={20} />, onSelect: props.onExportProject },
-        ]} />
     </div>
     <div className="editing-bar" aria-label="Editing tools">
       <div className="tool-picker" role="group" aria-label="Choose a tool">
@@ -77,15 +70,24 @@ export function Toolbar(props: Props) {
         <button className="icon-button" title="Undo" aria-label="Undo" onClick={props.onUndo} disabled={!props.canUndo}><Undo2 size={17} /></button>
         <button className="icon-button" title="Redo" aria-label="Redo" onClick={props.onRedo} disabled={!props.canRedo}><Redo2 size={17} /></button>
       </div>
+      {(props.tool === 'pen' || props.tool === 'eraser') && <div className="tool-options">
+        {props.tool === 'pen' && <label>Color <input type="color" value={props.penColor} onChange={(event) => props.onPenColor(event.target.value)} /></label>}
+        <label>{props.tool === 'pen' ? 'Brush size' : 'Eraser size'}
+          <input type="range" min={props.tool === 'pen' ? 1 : 4} max={props.tool === 'pen' ? 12 : 32} step={props.tool === 'pen' ? 0.5 : 1}
+            value={props.tool === 'pen' ? props.penRadius : props.eraserRadius}
+            onChange={(event) => props.tool === 'pen' ? props.onPenRadius(Number(event.target.value)) : props.onEraserRadius(Number(event.target.value))} />
+          <output>{2 * (props.tool === 'pen' ? props.penRadius : props.eraserRadius)}px</output>
+        </label>
+      </div>}
     </div>
-    {(props.tool === 'pen' || props.tool === 'eraser') && <div className="tool-options">
-      {props.tool === 'pen' && <label>Color <input type="color" value={props.penColor} onChange={(event) => props.onPenColor(event.target.value)} /></label>}
-      <label>{props.tool === 'pen' ? 'Brush size' : 'Eraser size'}
-        <input type="range" min={props.tool === 'pen' ? 1 : 4} max={props.tool === 'pen' ? 12 : 32} step={props.tool === 'pen' ? 0.5 : 1}
-          value={props.tool === 'pen' ? props.penRadius : props.eraserRadius}
-          onChange={(event) => props.tool === 'pen' ? props.onPenRadius(Number(event.target.value)) : props.onEraserRadius(Number(event.target.value))} />
-        <output>{2 * (props.tool === 'pen' ? props.penRadius : props.eraserRadius)}px</output>
-      </label>
-    </div>}
+    <div className="toolbar-actions">
+      <ThemeToggle />
+      <ActionMenu label={props.exporting ? 'Exporting…' : 'Export'} primary disabled={props.exporting}
+        icon={props.exporting ? <RotateCcw className="spin" size={16} /> : <Download size={16} />}
+        items={[
+          { label: 'PDF document', description: 'A finished PDF to share or print.', icon: <FileText size={20} />, onSelect: props.onExport },
+          { label: 'Editable project', description: 'A .typstability backup to keep editing later.', icon: <FileDown size={20} />, onSelect: props.onExportProject },
+        ]} />
+    </div>
   </header>
 }

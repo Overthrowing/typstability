@@ -33,14 +33,19 @@ export function ActionMenu({ label, icon, items, primary, compact, disabled, ali
     const outside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false)
     }
+    const focusOutside = (event: FocusEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false)
+    }
     window.addEventListener('pointerdown', outside)
-    return () => window.removeEventListener('pointerdown', outside)
+    window.addEventListener('focusin', focusOutside)
+    return () => {
+      window.removeEventListener('pointerdown', outside)
+      window.removeEventListener('focusin', focusOutside)
+    }
   }, [open])
 
   const close = () => { setOpen(false); trigger.current?.focus() }
-  return <div className="action-menu" ref={root} onBlur={(event) => {
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false)
-  }} onKeyDown={(event) => {
+  return <div className="action-menu" ref={root} onKeyDown={(event) => {
     if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close() }
     if (!open || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
@@ -59,7 +64,7 @@ export function ActionMenu({ label, icon, items, primary, compact, disabled, ali
     </button>
     {open && <div className={`menu-panel align-${align}`} id={id} ref={menu} role="menu" aria-label={label}>
       {items.map((item) => <button key={item.label} role="menuitem" className={`menu-item ${item.danger ? 'is-danger' : ''}`}
-        disabled={item.disabled} onClick={() => { close(); item.onSelect() }}>
+        disabled={item.disabled} onClick={() => { item.onSelect(); setOpen(false) }}>
         {item.icon}<span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span>
       </button>)}
     </div>}

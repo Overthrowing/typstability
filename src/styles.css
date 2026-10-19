@@ -106,22 +106,22 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .name-field input { width: 100%; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 8px; font-size: 14px; color: var(--ink); background: var(--surface); font-weight: 400; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 26px; }
 
-/* Editor header: project actions above editing actions */
+/* A single row keeps project, editing, and export actions together. */
 .app-shell { width: 100%; height: 100%; display: flex; flex-direction: column; }
-.editor-header { position: relative; z-index: 30; flex: 0 0 auto; background: var(--surface); border-bottom: 1px solid var(--line); }
-.project-bar { display: flex; align-items: center; gap: 15px; min-height: 72px; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+.editor-header { position: relative; z-index: 30; flex: 0 0 auto; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.project-bar { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 12px; }
 .back-button { display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; border-radius: 6px; padding: 8px 0; font-size: 12px; color: var(--muted); }
 .back-button:hover { color: var(--accent); }
 .header-divider { width: 1px; height: 24px; flex: 0 0 auto; background: var(--line); }
 .editor-logo { width: 36px; height: 36px; margin-right: -9px; }
-.project-identity { flex: 1; min-width: 0; display: grid; gap: 4px; }
-.project-title { display: block; width: min(100%, 420px); padding: 3px 5px; margin-left: -5px; background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; }
+.project-identity { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; }
+.project-title { display: block; flex: 1 1 auto; min-width: 0; max-width: 360px; padding: 3px 5px; margin-left: -5px; background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; }
 .project-title:hover { border-color: var(--line); }
 .project-title:focus { background: var(--rail); border-color: var(--accent-border); }
-.save-status { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }
+.save-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 .save-status svg { color: #699681; }
 .save-status.save-error, .save-status.save-error svg { color: var(--danger); }
-.editing-bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 22px; min-height: 56px; }
+.editing-bar { display: flex; flex: 0 1 auto; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
 .tool-picker { display: flex; align-items: center; gap: 3px; }
 .editing-tool { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 35px; padding: 7px 11px; border: 1px solid transparent; border-radius: 7px; background: none; color: var(--muted); font-size: 12px; font-weight: 500; }
 .editing-tool:hover { background: var(--surface-hover); }
@@ -129,11 +129,12 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .styles-button { display: flex; align-items: center; gap: 7px; padding: 8px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 12px; }
 .styles-button:hover, .styles-button.is-active { background: var(--accent-soft); color: var(--accent); }
 .history-controls { display: flex; gap: 2px; margin-left: 4px; padding-left: 14px; border-left: 1px solid var(--line); }
-.tool-options { display: flex; align-items: center; gap: 24px; padding: 9px 26px; border-top: 1px solid var(--line); background: var(--chrome); }
-.tool-options label { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; }
+.tool-options { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; padding-left: 12px; border-left: 1px solid var(--line); }
+.tool-options label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; white-space: nowrap; }
 .tool-options input[type="color"] { width: 24px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
 .tool-options input[type="range"] { width: 100px; accent-color: var(--accent); }
 .tool-options output { min-width: 30px; font-variant-numeric: tabular-nums; }
+.toolbar-actions { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 
 /* Pages and canvas */
 .workspace { min-height: 0; flex: 1; display: flex; position: relative; }
@@ -229,12 +230,33 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .busy-overlay { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--overlay); font-size: 14px; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 1500px) {
+  .editing-bar { gap: 5px; }
+  .editing-tool { min-width: 34px; padding-inline: 8px; }
+  .editing-tool span, .styles-button span { display: none; }
+  .styles-button { width: 34px; justify-content: center; }
+  .tool-options { gap: 7px; padding-left: 7px; }
+  .tool-options label { gap: 4px; font-size: 0; }
+  .tool-options output { font-size: 10px; }
+  .tool-options input[type="range"] { width: 70px; }
+}
+@media (max-width: 1100px) {
+  .save-status-label { display: none; }
+  .editing-bar .menu-trigger { width: 33px; padding-inline: 6px; }
+  .editing-bar .menu-trigger span, .editing-bar .menu-trigger svg:last-child { display: none; }
+  .toolbar-actions .menu-trigger { width: 34px; padding: 0; }
+  .toolbar-actions .menu-trigger span, .toolbar-actions .menu-trigger svg:last-child { display: none; }
+}
+@media (max-width: 1000px) {
+  .project-bar > .header-divider, .editor-logo { display: none; }
+  .back-button > span { display: none; }
+}
 @media (max-width: 900px) {
   .library-content { padding-top: 40px; }
   .library-heading { align-items: flex-start; }
   .library-heading h1 { max-width: 400px; }
   .start-card { padding: 20px; }
-  .editing-bar { gap: 9px; }
+  .editor-header { gap: 7px; padding-inline: 12px; }
   .document-scroll.with-inspector { padding-bottom: min(48vh, 420px); }
   .inspector-resizer { display: none; }
   .inspector { position: absolute; right: 0; bottom: 0; top: auto; width: 100% !important; min-width: 0; max-width: none; height: min(48vh, 420px); border-top: 1px solid var(--line); border-left: 0; }
@@ -255,20 +277,18 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
   .project-search input { width: 100%; }
   .project-card { gap: 6px; padding-right: 10px; }
   .current-badge { display: none; }
-  .project-bar { min-height: 67px; padding: 10px 12px; gap: 10px; }
-  .project-bar > .header-divider, .editor-logo { display: none; }
+  .editor-header { min-height: 54px; padding-inline: 9px; gap: 5px; }
+  .project-bar { gap: 6px; }
   .back-button { padding-inline: 3px; }
-  .back-button > span { display: none; }
   .project-title { font-size: 13px; }
-  .save-status { font-size: 9px; }
-  .editing-bar { padding: 8px 12px; gap: 6px; flex-wrap: wrap; }
+  .save-status-label { display: none; }
+  .editing-bar { gap: 3px; }
   .editing-bar > .header-divider { display: none; }
-  .tool-picker { flex: 1 0 100%; padding-bottom: 4px; }
-  .editing-tool { flex: 1; }
-  .styles-button { font-size: 11px; }
-  .tool-options { padding-inline: 14px; gap: 15px; }
-  .tool-options input[type="range"] { width: 85px; }
-  .tool-options label { gap: 6px; font-size: 10px; }
+  .editing-tool { min-width: 30px; padding-inline: 6px; }
+  .history-controls { margin-left: 0; padding-left: 4px; }
+  .toolbar-actions { gap: 4px; }
+  .tool-options { position: absolute; top: calc(100% + 6px); right: 9px; z-index: 1; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: 0 6px 18px #0002; }
+  .tool-options input[type="range"] { width: 70px; }
   .page-rail { width: 88px; flex-basis: 88px; padding-inline: 6px; gap: 10px; }
   .rail-heading { padding-left: 0; }
   .rail-heading small { display: none; }
@@ -277,6 +297,23 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
   .thumbnail-delete { opacity: 1; }
   .editor-statusbar { padding-inline: 12px; }
   .tool-hint { display: none; }
+}
+@media (max-width: 500px) {
+  .project-title { display: none; }
+  .project-identity { display: none; }
+}
+@media (max-width: 400px) {
+  .editor-header { gap: 3px; padding-inline: 5px; }
+  .project-bar, .toolbar-actions { flex: 0 0 auto; }
+  .editing-bar { flex: 1 1 auto; gap: 1px; }
+  .tool-picker { gap: 0; }
+  .editing-tool { min-width: 26px; padding-inline: 4px; }
+  .styles-button { width: 28px; padding-inline: 4px; }
+  .editing-bar .menu-trigger { width: 28px; padding-inline: 4px; }
+  .history-controls { gap: 0; padding-left: 2px; }
+  .history-controls .icon-button { width: 26px; }
+  .toolbar-actions .menu-trigger { width: 30px; }
+  .toolbar-actions .theme-toggle { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
 
