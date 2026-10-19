@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
+import type { DragEvent as ReactDragEvent } from 'react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { CanvasPage } from './components/CanvasPage'
 import { PageThumbnail } from './components/PageThumbnail'
@@ -9,12 +10,16 @@ import { TypstInspector } from './components/TypstInspector'
 import type { EditorSessions } from './components/TypstCodeEditor'
 import { useViewportZoom } from './lib/use-viewport-zoom'
 import { useHistoryState } from './lib/history'
+import { decodeImageFile, isSupportedImageFile, placeImage } from './lib/images'
 import { createPdfProxy, downloadBytes, exportPdf, readPdf } from './lib/pdf'
 import { useProjects } from './lib/use-projects'
 import { downloadProject, parseProject } from './lib/project-file'
 import { ProjectLibrary } from './components/ProjectLibrary'
 import { compileTypstSvg } from './typst/client'
+import { DEFAULT_TYPST_TOP_INSET } from './typst/source'
 import { strokeTouchesPoint } from './lib/geometry'
+import { reorderPages } from './lib/pages'
+import type { DropSide } from './lib/pages'
 import type {
   Box,
   EditorDocument,
@@ -37,6 +42,11 @@ const emptyDocument = (): EditorDocument => ({
   updatedAt: Date.now(),
 })
 
+function thumbnailDropSide(event: ReactDragEvent<HTMLElement>): DropSide {
+  const bounds = event.currentTarget.getBoundingClientRect()
+  return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+}
+
 function App() {
   const documentHistory = useHistoryState(emptyDocument())
   const document = documentHistory.value
@@ -51,6 +61,9 @@ function App() {
   const [eraserRadius, setEraserRadius] = useState(12)
   const [dragPreview, setDragPreview] = useState<ObjectDragPreview | null>(null)
   const [thumbnailsOpen, setThumbnailsOpen] = useState(true)
+  const [draggingPageId, setDraggingPageId] = useState<string | null>(null)
+  const [pageDropTarget, setPageDropTarget] = useState<{ pageId: string; side: DropSide } | null>(null)
+  const [imageDropTarget, setImageDropTarget] = useState<string | null>(null)
   const [preludeOpen, setPreludeOpen] = useState(false)
   const [preludeError, setPreludeError] = useState<string | undefined>()
   const [finalCompileRevision, setFinalCompileRevision] = useState(0)
@@ -65,9 +78,18 @@ function App() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const compileBurstStartRef = useRef<number | null>(null)
   const handledFinalCompileRef = useRef(0)
+  const backgroundPreviewRequests = useRef(new Map<string, string>())
+  const draggingPageIdRef = useRef<string | null>(null)
+  const documentEpochRef = useRef(0)
 
   const loadDocument = useCallback((next: EditorDocument) => {
     generation.current += 1
+    documentEpochRef.current += 1
+    backgroundPreviewRequests.current.clear()
+    draggingPageIdRef.current = null
+    setDraggingPageId(null)
+    setPageDropTarget(null)
+    setImageDropTarget(null)
     setDragPreview(null)
     setPreludeError(undefined)
     resetDocumentState(next)
@@ -96,6 +118,8 @@ function App() {
   const selectedTypstSource = selectedTypst?.source
   const selectedTypstWidth = selectedTypst?.width
   const selectedTypstHeight = selectedTypst?.height
+  const selectedTypstTopInset = selectedTypst?.topInset ?? DEFAULT_TYPST_TOP_INSET
+  const selectedTypstPageFill = selectedTypst?.pageFill ?? ''
   const selectedPageId = selection?.pageId
 
   useEffect(() => {
@@ -136,6 +160,8 @@ function App() {
     const source = selectedTypstSource
     const width = selectedTypstWidth
     const height = selectedTypstHeight
+    const topInset = selectedTypstTopInset
+    const pageFill = selectedTypstPageFill
     const prelude = document.prelude
     const forceFinal = handledFinalCompileRef.current !== finalCompileRevision
     handledFinalCompileRef.current = finalCompileRevision
@@ -146,7 +172,7 @@ function App() {
     const delay = forceFinal ? 0 : Math.max(0, Math.min(40, 80 - elapsed))
     const timer = window.setTimeout(() => {
       compileBurstStartRef.current = null
-      compileTypstSvg(source, width, height, prelude)
+      compileTypstSvg(source, width, height, prelude, topInset, pageFill)
         .then((previewSvg) => {
           if (cancelled || revision !== generation.current) return
           updateDocument((current) => ({
@@ -157,12 +183,17 @@ function App() {
                   elements: page.elements.map((element) =>
                     element.id === id && element.kind === 'typst'
                     && current.prelude === prelude && element.source === source && element.width === width && element.height === height
+                    && (element.topInset ?? DEFAULT_TYPST_TOP_INSET) === topInset
+                    && (element.pageFill ?? '') === pageFill
                       ? {
                           ...element,
                           previewSvg,
+                          previewSource: source,
                           previewWidth: width,
                           previewHeight: height,
                           previewPrelude: prelude,
+                          previewTopInset: topInset,
+                          previewPageFill: pageFill,
                           error: undefined,
                         }
                       : element),
@@ -180,6 +211,8 @@ function App() {
                   elements: page.elements.map((element) =>
                     element.id === id && element.kind === 'typst'
                     && current.prelude === prelude && element.source === source && element.width === width && element.height === height
+                    && (element.topInset ?? DEFAULT_TYPST_TOP_INSET) === topInset
+                    && (element.pageFill ?? '') === pageFill
                       ? { ...element, error: error instanceof Error ? error.message : String(error) }
                       : element),
                 }
@@ -192,12 +225,67 @@ function App() {
     selectedTypstSource,
     selectedTypstWidth,
     selectedTypstHeight,
+    selectedTypstTopInset,
+    selectedTypstPageFill,
     selectedTypstId,
     selectedPageId,
     document.prelude,
     finalCompileRevision,
     updateDocument,
   ])
+
+  useEffect(() => {
+    const prelude = document.prelude
+    for (const page of document.pages) {
+      for (const element of page.elements) {
+        if (element.kind !== 'typst' || (page.id === selectedPageId && element.id === selectedTypstId)) continue
+        if (element.previewSvg && element.previewSource === element.source
+          && element.previewWidth === element.width && element.previewHeight === element.height
+          && element.previewPrelude === prelude
+          && element.previewTopInset === (element.topInset ?? DEFAULT_TYPST_TOP_INSET)
+          && element.previewPageFill === (element.pageFill ?? '')) continue
+        const topInset = element.topInset ?? DEFAULT_TYPST_TOP_INSET
+        const pageFill = element.pageFill ?? ''
+        const key = JSON.stringify([element.source, element.width, element.height, prelude, topInset, pageFill])
+        if (backgroundPreviewRequests.current.get(element.id) === key) continue
+        backgroundPreviewRequests.current.set(element.id, key)
+        const { id, source, width, height } = element
+        const pageId = page.id
+        compileTypstSvg(source, width, height, prelude, topInset, pageFill)
+          .then((previewSvg) => {
+            if (backgroundPreviewRequests.current.get(id) === key) backgroundPreviewRequests.current.delete(id)
+            updateDocument((current) => ({
+              ...current,
+              pages: current.pages.map((candidate) => candidate.id === pageId ? {
+                ...candidate,
+                elements: candidate.elements.map((item) => item.kind === 'typst' && item.id === id
+                  && item.source === source && item.width === width && item.height === height
+                  && current.prelude === prelude
+                  && (item.topInset ?? DEFAULT_TYPST_TOP_INSET) === topInset
+                  && (item.pageFill ?? '') === pageFill
+                  ? { ...item, previewSvg, previewSource: source, previewWidth: width,
+                    previewHeight: height, previewPrelude: prelude, previewTopInset: topInset,
+                    previewPageFill: pageFill, error: undefined }
+                  : item),
+              } : candidate),
+            }), false)
+          })
+          .catch((error) => updateDocument((current) => ({
+            ...current,
+            pages: current.pages.map((candidate) => candidate.id === pageId ? {
+              ...candidate,
+              elements: candidate.elements.map((item) => item.kind === 'typst' && item.id === id
+                && item.source === source && item.width === width && item.height === height
+                && current.prelude === prelude
+                && (item.topInset ?? DEFAULT_TYPST_TOP_INSET) === topInset
+                && (item.pageFill ?? '') === pageFill
+                ? { ...item, error: error instanceof Error ? error.message : String(error) }
+                : item),
+            } : candidate),
+          }), false))
+      }
+    }
+  }, [document.pages, document.prelude, selectedPageId, selectedTypstId, updateDocument])
 
   useEffect(() => {
     if (!preludeOpen) return
@@ -236,10 +324,14 @@ function App() {
       for (const page of next.pages) for (const element of page.elements) {
         if (element.kind !== 'typst') continue
         try {
-          element.previewSvg = await compileTypstSvg(element.source, element.width, element.height, next.prelude)
+          element.previewSvg = await compileTypstSvg(element.source, element.width, element.height, next.prelude,
+            element.topInset ?? DEFAULT_TYPST_TOP_INSET, element.pageFill ?? '')
+          element.previewSource = element.source
           element.previewWidth = element.width
           element.previewHeight = element.height
           element.previewPrelude = next.prelude
+          element.previewTopInset = element.topInset ?? DEFAULT_TYPST_TOP_INSET
+          element.previewPageFill = element.pageFill ?? ''
         } catch (e) { element.error = String(e) }
       }
       await library.create(next)
@@ -287,12 +379,19 @@ function App() {
     if (selection?.pageId === pageId) setSelection(null)
   }
 
+  const finishPageDrag = () => {
+    draggingPageIdRef.current = null
+    setDraggingPageId(null)
+    setPageDropTarget(null)
+  }
+
   const createTypst = (pageId: string, box: Box) => {
     const element: TypstElement = {
       id: uid(),
       kind: 'typst',
       ...box,
       source: '',
+      topInset: DEFAULT_TYPST_TOP_INSET,
     }
     updateDocument((current) => ({
       ...current,
@@ -311,15 +410,13 @@ function App() {
 
     let destinationPageId = sourcePageId
     let destinationShell: HTMLElement | null = null
-    if (element.kind === 'typst') {
-      for (const shell of globalThis.document.querySelectorAll<HTMLElement>('[data-page-id]')) {
-        const rect = shell.getBoundingClientRect()
-        if (drop.clientX >= rect.left && drop.clientX <= rect.right
-          && drop.clientY >= rect.top && drop.clientY <= rect.bottom) {
-          destinationPageId = shell.dataset.pageId || sourcePageId
-          destinationShell = shell
-          break
-        }
+    for (const shell of globalThis.document.querySelectorAll<HTMLElement>('[data-page-id]')) {
+      const rect = shell.getBoundingClientRect()
+      if (drop.clientX >= rect.left && drop.clientX <= rect.right
+        && drop.clientY >= rect.top && drop.clientY <= rect.bottom) {
+        destinationPageId = shell.dataset.pageId || sourcePageId
+        destinationShell = shell
+        break
       }
     }
 
@@ -370,46 +467,97 @@ function App() {
     }))
   }, [document.pages, eraserRadius, updateDocument])
 
-  const addImage = async (file?: File) => {
-    if (!file || !activePage) return
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      setNotice('Please choose a PNG or JPEG image.')
+  const addImages = useCallback(async (files: File[], targetPageId?: string, dropPoint?: Point) => {
+    const images = files.filter(isSupportedImageFile)
+    if (!images.length) {
+      setNotice('Choose a PNG, JPEG, WebP, or GIF image.')
       return
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result))
-      reader.onerror = () => reject(reader.error)
-      reader.readAsDataURL(file)
-    })
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const next = new Image()
-      next.onload = () => resolve(next)
-      next.onerror = reject
-      next.src = dataUrl
-    })
-    const maxWidth = Math.min(320, activePage.width - 72)
-    const width = Math.min(maxWidth, image.naturalWidth)
-    const height = width * image.naturalHeight / image.naturalWidth
-    const element: PageElement = {
-      id: uid(),
-      kind: 'image',
-      x: (activePage.width - width) / 2,
-      y: 72,
-      width,
-      height,
-      dataUrl,
-      mime: file.type as 'image/png' | 'image/jpeg',
+    const createProject = library.libraryOpen || !document.pages.length
+    const target = createProject ? undefined : document.pages.find((page) => page.id === targetPageId)
+      ?? document.pages.find((page) => page.id === activePageId)
+      ?? document.pages[0]
+    const pageId = target?.id ?? uid()
+    const epoch = documentEpochRef.current
+    try {
+      const decoded = await Promise.all(images.map(decodeImageFile))
+      if (documentEpochRef.current !== epoch) return
+      const elements = decoded.map((image, index) => placeImage(image, target ?? LETTER_PAGE, dropPoint, index * 16))
+      if (createProject) {
+        await library.create({ name: images[0].name.replace(/\.[^.]+$/, '') || 'Image document', prelude: '', originalPdf: null,
+          pages: [{ id: pageId, sourceIndex: null, ...LETTER_PAGE, elements }], updatedAt: Date.now() })
+      } else {
+        updateDocument((current) => {
+          if (!current.pages.some((page) => page.id === pageId)) return current
+          return {
+            ...current,
+            pages: current.pages.map((page) => page.id === pageId
+              ? { ...page, elements: [...page.elements, ...elements] }
+              : page),
+          }
+        })
+      }
+      setActivePageId(pageId)
+      setSelection({ pageId, elementId: elements[elements.length - 1].id })
+      setPreludeOpen(false)
+      setTool('select')
+      if (images.length < files.length) setNotice('Some files were skipped. Only PNG, JPEG, WebP, and GIF images are supported.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The image could not be added.')
     }
-    updateDocument((current) => ({
-      ...current,
-      pages: current.pages.map((page) => page.id === activePage.id
-        ? { ...page, elements: [...page.elements, element] }
-        : page),
-    }))
-    setSelection({ pageId: activePage.id, elementId: element.id })
-    setTool('select')
-  }
+  }, [activePageId, document.pages, library, updateDocument])
+
+  useEffect(() => {
+    const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
+    const targetPage = (target: EventTarget | null) => target instanceof Element
+      ? target.closest<HTMLElement>('.page-shell[data-page-id], .page-thumbnail[data-page-id]')
+      : null
+    const onPaste = (event: ClipboardEvent) => {
+      const itemFiles = Array.from(event.clipboardData?.items ?? [])
+        .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter((file): file is File => Boolean(file))
+      const files = itemFiles.length ? itemFiles : Array.from(event.clipboardData?.files ?? [])
+        .filter((file) => file.type.startsWith('image/'))
+      if (!files.length) return
+      event.preventDefault()
+      void addImages(files)
+    }
+    const onDragOver = (event: DragEvent) => {
+      if (!isFileDrag(event)) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+      setImageDropTarget(targetPage(event.target)?.dataset.pageId ?? null)
+    }
+    const onDrop = (event: DragEvent) => {
+      if (!isFileDrag(event)) return
+      event.preventDefault()
+      setImageDropTarget(null)
+      const files = Array.from(event.dataTransfer?.files ?? [])
+      const target = targetPage(event.target)
+      const pageId = target?.dataset.pageId
+      const point = target?.classList.contains('page-shell')
+        && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
+        ? { x: (event.clientX - target.getBoundingClientRect().left) / zoom,
+          y: (event.clientY - target.getBoundingClientRect().top) / zoom }
+        : undefined
+      void addImages(files, pageId, point)
+    }
+    const onDragLeave = (event: DragEvent) => {
+      if (event.relatedTarget) return
+      setImageDropTarget(null)
+    }
+    window.addEventListener('paste', onPaste)
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('drop', onDrop)
+    window.addEventListener('dragleave', onDragLeave)
+    return () => {
+      window.removeEventListener('paste', onPaste)
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('drop', onDrop)
+      window.removeEventListener('dragleave', onDragLeave)
+    }
+  }, [addImages, zoom])
 
   const deleteSelection = useCallback(() => {
     if (!selection) return
@@ -525,7 +673,39 @@ function App() {
           </div>
           {thumbnailsOpen && <>
             {document.pages.map((page, index) => (
-              <div className={`page-thumbnail ${activePage?.id === page.id ? 'is-active' : ''}`} key={page.id}>
+              <div className={[
+                'page-thumbnail', activePage?.id === page.id ? 'is-active' : '',
+                draggingPageId === page.id ? 'is-dragging' : '',
+                pageDropTarget?.pageId === page.id ? `drop-${pageDropTarget.side}` : '',
+              ].filter(Boolean).join(' ')} key={page.id} data-page-id={page.id} draggable={document.pages.length > 1}
+                onDragStart={(event) => {
+                  if ((event.target as HTMLElement).closest('.thumbnail-delete')) { event.preventDefault(); return }
+                  draggingPageIdRef.current = page.id
+                  setDraggingPageId(page.id)
+                  setPageDropTarget(null)
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', page.id)
+                }}
+                onDragOver={(event) => {
+                  if (!draggingPageIdRef.current || draggingPageIdRef.current === page.id) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  const side = thumbnailDropSide(event)
+                  setPageDropTarget((current) => current?.pageId === page.id && current.side === side
+                    ? current : { pageId: page.id, side })
+                }}
+                onDrop={(event) => {
+                  const draggedId = draggingPageIdRef.current
+                  if (!draggedId) return
+                  event.preventDefault()
+                  const side = thumbnailDropSide(event)
+                  if (reorderPages(document.pages, draggedId, page.id, side) !== document.pages) {
+                    updateDocument((current) => ({ ...current,
+                      pages: reorderPages(current.pages, draggedId, page.id, side) }))
+                  }
+                  finishPageDrag()
+                }}
+                onDragEnd={finishPageDrag}>
                 <button className="thumbnail-select" aria-label={`Go to page ${index + 1}`} aria-current={activePage?.id === page.id ? 'page' : undefined}
                   onClick={() => {
                     setActivePageId(page.id)
@@ -542,7 +722,7 @@ function App() {
         </nav>
         <main ref={documentScrollRef} className={`document-scroll ${selectedTypst || preludeOpen ? 'with-inspector' : ''}`}>
           {document.pages.map((page, index) => (
-            <div id={`page-${page.id}`} key={page.id} className="page-positioner">
+            <div id={`page-${page.id}`} key={page.id} className={`page-positioner ${imageDropTarget === page.id ? 'is-image-drop-target' : ''}`}>
               <CanvasPage
                 page={page}
                 pageNumber={index + 1}
@@ -590,6 +770,8 @@ function App() {
             documentKey={`${library.activeId}:box:${selectedTypst.id}`}
             sessions={editorSessions}
             onSourceChange={(source) => updateElement(selection.pageId, { ...selectedTypst, source })}
+            onTopInsetChange={(topInset) => updateElement(selection.pageId, { ...selectedTypst, topInset })}
+            onPageFillChange={(pageFill) => updateElement(selection.pageId, { ...selectedTypst, pageFill })}
             onDelete={deleteSelection}
             onClose={() => setSelection(null)}
           />
@@ -634,16 +816,19 @@ function App() {
             const viewport = documentScrollRef.current
             if (!viewport || !activePage) return
             const width = viewport.clientWidth - parseFloat(getComputedStyle(viewport).paddingRight) - 48
-            setZoom(Math.max(0.1, Math.min(1.8, width / activePage.width, (viewport.clientHeight - 72) / activePage.height)))
+            setZoom(Math.max(0.1, Math.min(5, width / activePage.width, (viewport.clientHeight - 72) / activePage.height)))
             window.requestAnimationFrame(() => globalThis.document.getElementById(`page-${activePage.id}`)?.scrollIntoView({ block: 'center' }))
           }}>Fit page</button>
           <button onClick={() => setZoom((value) => Math.max(0.1, value - 0.1))} disabled={zoom <= 0.1} aria-label="Zoom out"><ZoomOut size={15} /></button>
           <button className="zoom-reset" onClick={() => setZoom(1)} title="Reset zoom to 100%">{Math.round(zoom * 100)}%</button>
-          <button onClick={() => setZoom((value) => Math.min(1.8, value + 0.1))} disabled={zoom >= 1.8} aria-label="Zoom in"><ZoomIn size={15} /></button>
+          <button onClick={() => setZoom((value) => Math.min(5, value + 0.1))} disabled={zoom >= 5} aria-label="Zoom in"><ZoomIn size={15} /></button>
         </div>
       </footer>
       {alert}{fileInputs}{busyIndicator}
-      <input ref={imageInputRef} hidden type="file" accept="image/png,image/jpeg" onChange={(event) => { void addImage(event.target.files?.[0]); event.target.value = '' }} />
+      <input ref={imageInputRef} hidden type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => {
+        void addImages(Array.from(event.target.files ?? []))
+        event.target.value = ''
+      }} />
     </div>
   )
 }

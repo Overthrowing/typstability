@@ -62,7 +62,7 @@ export function Toolbar(props: Props) {
       </div>
       <span className="header-divider" />
       <ActionMenu label="Insert" icon={<Plus size={17} />} align="left" items={[
-        { label: 'Image', description: 'Add a PNG or JPEG to this page.', icon: <ImagePlus size={18} />, onSelect: props.onImage },
+        { label: 'Image', description: 'Add PNG, JPEG, WebP, or GIF images.', icon: <ImagePlus size={18} />, onSelect: props.onImage },
         { label: 'Blank page', description: 'Insert a page after the current one.', icon: <FileText size={18} />, onSelect: props.onBlankPage },
       ]} />
       <button className={`styles-button ${props.preludeOpen ? 'is-active' : ''}`} aria-pressed={props.preludeOpen} onClick={props.onPrelude} title="Shared Typst definitions and styles"><Braces size={17} /><span>Shared styles</span></button>

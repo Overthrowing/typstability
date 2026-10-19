@@ -3,17 +3,20 @@ import { InspectorPanel } from './InspectorPanel'
 import { Trash2, X } from 'lucide-react'
 import type { TypstElement } from '../types'
 import { TypstCodeEditor, type EditorSessions } from './TypstCodeEditor'
+import { DEFAULT_TYPST_TOP_INSET } from '../typst/source'
 
 type Props = {
   element: TypstElement
   documentKey: string
   sessions: EditorSessions
   onSourceChange: (source: string) => void
+  onTopInsetChange: (topInset: number) => void
+  onPageFillChange: (pageFill: string) => void
   onDelete: () => void
   onClose: () => void
 }
 
-export function TypstInspector({ element, documentKey, sessions, onSourceChange, onDelete, onClose }: Props) {
+export function TypstInspector({ element, documentKey, sessions, onSourceChange, onTopInsetChange, onPageFillChange, onDelete, onClose }: Props) {
   return (
     <InspectorPanel label="Text box editor">
       <header className="inspector-header">
@@ -25,6 +28,34 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
           <X size={16} />
         </button>
       </header>
+      <label className="typst-inset-control" htmlFor="typst-top-inset">
+        <span>Top inset</span>
+        <input
+          id="typst-top-inset"
+          type="number"
+          min="0"
+          max="200"
+          step="1"
+          value={element.topInset ?? DEFAULT_TYPST_TOP_INSET}
+          onChange={(event) => {
+            const value = Number(event.target.value)
+            if (Number.isFinite(value)) onTopInsetChange(Math.min(200, Math.max(0, value)))
+          }}
+          aria-label="Top inset"
+        />
+        <span>pt</span>
+      </label>
+      <label className="source-label" htmlFor="typst-page-fill">Fill (Typst)</label>
+      <input
+        id="typst-page-fill"
+        className="typst-fill-input"
+        type="text"
+        value={element.pageFill ?? ''}
+        onChange={(event) => onPageFillChange(event.target.value)}
+        placeholder="Inherit shared fill"
+        spellCheck={false}
+      />
+      <p className="typst-fill-help">Default: white. Use <code>rgb("#f5f0e6")</code> or <code>none</code> here, or <code>#set page(fill: ...)</code> in Prelude for every box.</p>
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}

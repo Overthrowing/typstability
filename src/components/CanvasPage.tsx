@@ -15,6 +15,7 @@ import type {
   TypstElement,
 } from '../types'
 import { renderPdfPage } from '../lib/pdf'
+import { canCreateBox, minimumBoxDimension, MIN_BOX_SCREEN_PIXELS } from '../lib/boxes'
 
 function useImage(source?: string, isSvg = false) {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
@@ -37,6 +38,7 @@ function useImage(source?: string, isSvg = false) {
 
 type ObjectProps = {
   element: ImageElement | TypstElement
+  zoom: number
   interactive: boolean
   selected: boolean
   onSelect: () => void
@@ -46,8 +48,8 @@ type ObjectProps = {
   onDragPreview: (preview: ObjectDragPreview | null) => void
 }
 
-function CanvasObject({ element, interactive, selected, onSelect, onChange, onResizeEnd, onDrop, onDragPreview }: ObjectProps) {
-  const shapeRef = useRef<Konva.Image | Konva.Rect>(null)
+function CanvasObject({ element, zoom, interactive, selected, onSelect, onChange, onResizeEnd, onDrop, onDragPreview }: ObjectProps) {
+  const shapeRef = useRef<Konva.Rect>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const grabOffset = useRef<Point>({ x: 0, y: 0 })
   const image = useImage(
@@ -71,8 +73,8 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
       ...element,
       x: node.x(),
       y: node.y(),
-      width: Math.max(24, node.width() * scaleX),
-      height: Math.max(18, node.height() * scaleY),
+      width: Math.max(element.kind === 'typst' ? minimumBoxDimension(zoom) : 24, node.width() * scaleX),
+      height: Math.max(element.kind === 'typst' ? minimumBoxDimension(zoom) : 18, node.height() * scaleY),
     }
     node.scaleX(1)
     node.scaleY(1)
@@ -122,9 +124,7 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
       })
     },
     onTransformStart: () => onChange(element, true),
-    onTransform: () => {
-      if (element.kind === 'typst') onChange(normalizedElement(), false)
-    },
+    onTransform: () => onChange(normalizedElement(), false),
     onTransformEnd: () => {
       const next = normalizedElement()
       onChange(next, false)
@@ -134,33 +134,27 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
 
   return (
     <>
-      {element.kind === 'image' ? (
-        <KonvaImage
-          ref={shapeRef as React.RefObject<Konva.Image>}
-          image={image ?? undefined}
-          {...common}
-          stroke={selected ? '#229ca8' : undefined}
-          strokeWidth={selected ? 1 : 0}
-        />
-      ) : (
-        <>
-          <Group
-            x={element.x}
-            y={element.y}
-            clipX={0}
-            clipY={0}
-            clipWidth={element.width}
-            clipHeight={element.height}
-            listening={false}
-          >
-            <Rect
+      <Group
+        x={element.x}
+        y={element.y}
+        clipX={0}
+        clipY={0}
+        clipWidth={element.width}
+        clipHeight={element.height}
+        listening={false}
+      >
+        {element.kind === 'image' ? (
+          image && <KonvaImage image={image} width={element.width} height={element.height} listening={false} />
+        ) : (
+          <>
+            {!image && <Rect
               x={0}
               y={0}
               width={element.width}
               height={element.height}
-              fill={image ? '#ffffff' : '#f5f4ef'}
+              fill="#f5f4ef"
               listening={false}
-            />
+            />}
             {image ? (
               <KonvaImage
                 image={image}
@@ -180,17 +174,17 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
                 listening={false}
               />
             )}
-          </Group>
-          <Rect
-            ref={shapeRef as React.RefObject<Konva.Rect>}
-            {...common}
-            fill="rgba(0, 0, 0, 0.001)"
-            stroke={selected ? '#229ca8' : image ? undefined : '#b7b5ad'}
-            dash={image ? undefined : [4, 4]}
-            strokeWidth={selected ? 1 : undefined}
-          />
-        </>
-      )}
+          </>
+        )}
+      </Group>
+      <Rect
+        ref={shapeRef}
+        {...common}
+        fill="rgba(0, 0, 0, 0.001)"
+        stroke={selected ? '#229ca8' : element.kind === 'typst' && !image ? '#b7b5ad' : undefined}
+        dash={element.kind === 'typst' && !image ? [4, 4] : undefined}
+        strokeWidth={selected ? 1 : undefined}
+      />
       {selected && (
         <Transformer
           ref={transformerRef}
@@ -200,9 +194,11 @@ function CanvasObject({ element, interactive, selected, onSelect, onChange, onRe
           anchorFill="#ffffff"
           anchorStroke="#229ca8"
           anchorSize={7}
-          boundBoxFunc={(oldBox, newBox) =>
-            newBox.width < 24 || newBox.height < 18 ? oldBox : newBox
-          }
+          boundBoxFunc={(oldBox, newBox) => {
+            const minimumWidth = element.kind === 'typst' ? MIN_BOX_SCREEN_PIXELS : 24 * zoom
+            const minimumHeight = element.kind === 'typst' ? MIN_BOX_SCREEN_PIXELS : 18 * zoom
+            return newBox.width < minimumWidth || newBox.height < minimumHeight ? oldBox : newBox
+          }}
         />
       )}
     </>
@@ -284,7 +280,7 @@ export function CanvasPage({
 
   const finishGesture = () => {
     if (tool === 'pen' && temporaryStroke.length) onAddStroke(temporaryStroke)
-    if (tool === 'typst' && box && box.width >= 30 && box.height >= 24) onCreateTypst(box)
+    if (tool === 'typst' && box && canCreateBox(box, zoom)) onCreateTypst(box)
     setTemporaryStroke([])
     setTemporaryBox(null)
     if (tool !== 'eraser') setEraserPoint(null)
@@ -362,6 +358,7 @@ export function CanvasPage({
               <CanvasObject
                 key={element.id}
                 element={element}
+                zoom={zoom}
                 interactive={tool === 'select'}
                 selected={tool === 'select' && selection?.pageId === page.id && selection.elementId === element.id}
                 onSelect={() => onSelect(element.id)}

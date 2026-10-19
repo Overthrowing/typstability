@@ -5,7 +5,7 @@ import type { EditorDocument } from '../types'
 const document: EditorDocument = {
   name: 'Notes ∑', prelude: '#let title = "Hello"', originalPdf: new Uint8Array([0, 255, 128, 10]), updatedAt: 1,
   pages: [{ id: 'p', sourceIndex: 0, width: 612, height: 792, elements: [
-    { id: 't', kind: 'typst', x: 10, y: 20, width: 100, height: 80, source: '$ x^2 $', previewSvg: '<svg>cache</svg>' },
+    { id: 't', kind: 'typst', x: 10, y: 20, width: 100, height: 80, source: '$ x^2 $', topInset: 6, pageFill: 'rgb("#f5f0e6")', previewSvg: '<svg>cache</svg>' },
     { id: 'i', kind: 'image', x: 0, y: 0, width: 50, height: 50, mime: 'image/png', dataUrl: 'data:image/png;base64,AQID' },
     { id: 's', kind: 'stroke', points: [{ x: 1, y: 2 }, { x: 3, y: 4 }], color: '#123abc', radius: 2 },
   ] }, { id: 'blank', sourceIndex: null, width: 400, height: 600, elements: [] }],
@@ -18,7 +18,7 @@ describe('project files', () => {
     expect(result.originalPdf).toEqual(document.originalPdf)
     expect(result.prelude).toBe(document.prelude)
     expect(result.name).toBe(document.name)
-    expect(result.pages[0].elements[0]).toEqual({ id: 't', kind: 'typst', x: 10, y: 20, width: 100, height: 80, source: '$ x^2 $' })
+    expect(result.pages[0].elements[0]).toEqual({ id: 't', kind: 'typst', x: 10, y: 20, width: 100, height: 80, source: '$ x^2 $', topInset: 6, pageFill: 'rgb("#f5f0e6")' })
     expect(result.pages[0].elements.slice(1)).toEqual(document.pages[0].elements.slice(1))
     expect(result.pages[1]).toEqual(document.pages[1])
   })
@@ -34,6 +34,8 @@ describe('project files', () => {
     (f: any) => { f.document.pages[0].sourceIndex = -1 },
     (f: any) => { f.document.pages = [] },
     (f: any) => { f.document.pages[0].elements[0].kind = 'script' },
+    (f: any) => { f.document.pages[0].elements[0].topInset = -1 },
+    (f: any) => { f.document.pages[0].elements[0].pageFill = 3 },
   ])('rejects malformed or unsupported input', (mutate) => {
     const file = JSON.parse(serializeProject(document))
     mutate(file)

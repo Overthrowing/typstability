@@ -7,6 +7,7 @@ import regularFont from '../assets/fonts/NewCM10-Regular.otf?url'
 import boldFont from '../assets/fonts/NewCM10-Bold.otf?url'
 import italicFont from '../assets/fonts/NewCM10-Italic.otf?url'
 import mathFont from '../assets/fonts/NewCMMath-Regular.otf?url'
+import { wrapSource } from './source'
 
 type Request = {
   id: number
@@ -15,6 +16,8 @@ type Request = {
   prelude: string
   width: number
   height: number
+  topInset?: number
+  pageFill?: string
 }
 
 type Runtime = {
@@ -82,15 +85,11 @@ async function getRenderSession(runtime: Runtime) {
   return runtime.renderSessionReady
 }
 
-function wrapSource(source: string, prelude: string, width: number, height: number) {
-  return `#set text(font: "New Computer Modern", size: 12pt)\n${prelude}\n#set page(width: ${width}pt, height: ${height}pt, margin: 0pt, fill: none)\n#block(width: 100%, height: 100%, clip: true)[\n${source}\n]`
-}
-
-async function processRequest({ id, format, source, prelude, width, height }: Request) {
+async function processRequest({ id, format, source, prelude, width, height, topInset, pageFill }: Request) {
   let stage = 'initialize runtime'
   try {
     const runtime = await initialize()
-    const mainContent = wrapSource(source, prelude, width, height)
+    const mainContent = wrapSource(source, prelude, width, height, topInset, pageFill)
     if (format === 'svg') {
       stage = 'update source'
       runtime.compiler.addSource('/preview.typ', mainContent)

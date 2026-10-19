@@ -28,8 +28,8 @@ function array(value: unknown): unknown[] {
 }
 function editableElement(element: PageElement) {
   if (element.kind !== 'typst') return element
-  const { id, kind, x, y, width, height, source } = element
-  return { id, kind, x, y, width, height, source }
+  const { id, kind, x, y, width, height, source, topInset, pageFill } = element
+  return { id, kind, x, y, width, height, source, topInset, pageFill }
 }
 export function serializeProject(document: EditorDocument): string {
   return JSON.stringify({ format: FORMAT, version: 1, document: {
@@ -66,7 +66,14 @@ export function parseProject(text: string): EditorDocument {
           return { id: elementId, kind: 'stroke', color, radius: number(e.radius, true), points: array(e.points).map((p) => { const point = object(p); return { x: number(point.x), y: number(point.y) } }) }
         }
         const box = { id: elementId, x: number(e.x), y: number(e.y), width: number(e.width, true), height: number(e.height, true) }
-        if (e.kind === 'typst') return { ...box, kind: 'typst', source: string(e.source) }
+        if (e.kind === 'typst') {
+          const topInset = e.topInset === undefined ? undefined : number(e.topInset)
+          if (topInset !== undefined && topInset < 0) throw new Error('Invalid Typst top inset.')
+          const pageFill = e.pageFill === undefined ? undefined : string(e.pageFill)
+          return { ...box, kind: 'typst', source: string(e.source),
+            ...(topInset === undefined ? {} : { topInset }),
+            ...(pageFill === undefined ? {} : { pageFill }) }
+        }
         if (e.kind === 'image') {
           if (e.mime !== 'image/png' && e.mime !== 'image/jpeg') throw new Error('Unsupported image type.')
           const dataUrl = string(e.dataUrl)
