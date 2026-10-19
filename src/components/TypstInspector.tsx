@@ -28,34 +28,37 @@ export function TypstInspector({ element, documentKey, sessions, onSourceChange,
           <X size={16} />
         </button>
       </header>
-      <label className="typst-inset-control" htmlFor="typst-top-inset">
-        <span>Top inset</span>
-        <input
-          id="typst-top-inset"
-          type="number"
-          min="0"
-          max="200"
-          step="1"
-          value={element.topInset ?? DEFAULT_TYPST_TOP_INSET}
-          onChange={(event) => {
-            const value = Number(event.target.value)
-            if (Number.isFinite(value)) onTopInsetChange(Math.min(200, Math.max(0, value)))
-          }}
-          aria-label="Top inset"
-        />
-        <span>pt</span>
-      </label>
-      <label className="source-label" htmlFor="typst-page-fill">Fill (Typst)</label>
-      <input
-        id="typst-page-fill"
-        className="typst-fill-input"
-        type="text"
-        value={element.pageFill ?? ''}
-        onChange={(event) => onPageFillChange(event.target.value)}
-        placeholder="Inherit shared fill"
-        spellCheck={false}
-      />
-      <p className="typst-fill-help">Default: white. Use <code>rgb("#f5f0e6")</code> or <code>none</code> here, or <code>#set page(fill: ...)</code> in Prelude for every box.</p>
+      <div className="typst-settings-row">
+        <label className="typst-inset-control" htmlFor="typst-top-inset">
+          <span>Top inset</span>
+          <input
+            id="typst-top-inset"
+            type="number"
+            min="0"
+            max="200"
+            step="1"
+            value={element.topInset ?? DEFAULT_TYPST_TOP_INSET}
+            onChange={(event) => {
+              const value = Number(event.target.value)
+              if (Number.isFinite(value)) onTopInsetChange(Math.min(200, Math.max(0, value)))
+            }}
+            aria-label="Top inset"
+          />
+          <span>pt</span>
+        </label>
+        <label className="typst-fill-control" htmlFor="typst-page-fill">
+          <span>Fill (Typst)</span>
+          <input
+            id="typst-page-fill"
+            className="typst-fill-input"
+            type="text"
+            value={element.pageFill ?? ''}
+            onChange={(event) => onPageFillChange(event.target.value)}
+            placeholder="Inherit shared fill"
+            spellCheck={false}
+          />
+        </label>
+      </div>
       <TypstCodeEditor
         key={documentKey}
         documentKey={documentKey}

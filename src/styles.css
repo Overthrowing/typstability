@@ -156,6 +156,9 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .thumbnail-paper { position: relative; display: block; overflow: hidden; border: 1px solid var(--line-strong); background: white; box-shadow: 0 2px 5px #20383b08; }
 .thumbnail-paper canvas, .thumbnail-blank { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .thumbnail-blank { background: white; }
+.thumbnail-overlays, .thumbnail-overlays > svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
+.thumbnail-object { position: absolute; display: block; overflow: hidden; }
+.thumbnail-object img { display: block; width: 100%; height: 100%; max-width: none; }
 .thumbnail-number { position: absolute; right: 3px; bottom: 3px; min-width: 17px; height: 17px; display: grid; place-items: center; padding: 0 3px; border-radius: 4px; color: #58767a; background: #fffffff2; box-shadow: 0 1px 3px #20383b18; font-size: 9px; }
 .page-thumbnail.is-active { border-color: var(--accent-border); background: var(--accent-soft); }
 .thumbnail-delete { opacity: 0; position: absolute; top: -7px; right: -7px; width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--danger); background: var(--surface); }
@@ -197,11 +200,12 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-bo
 .inspector-header strong { font-size: 13px; font-weight: 600; }
 .inspector-header span { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .inspector-header .icon-button { color: var(--muted); }
-.typst-inset-control { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; margin: 12px 14px 0; color: var(--muted); font-size: 11px; }
-.typst-inset-control input { width: 58px; height: 28px; margin-left: auto; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); text-align: right; }
-.source-label { flex: 0 0 auto; margin: 12px 14px 0; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
-.typst-fill-input { flex: 0 0 auto; width: calc(100% - 28px); height: 32px; margin: 6px 14px 0; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); font: 11px ui-monospace, monospace; }
-.typst-fill-help { flex: 0 0 auto; margin: 6px 14px 12px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.typst-settings-row { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; min-width: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.typst-inset-control, .typst-fill-control { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.typst-inset-control { flex: 0 0 auto; }
+.typst-inset-control input { width: 52px; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); text-align: right; }
+.typst-fill-control { flex: 1; min-width: 0; }
+.typst-fill-input { flex: 1; min-width: 0; width: 100%; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); font: 11px ui-monospace, monospace; }
 .compile-errors { flex: 0 0 auto; margin: 0; border-top: 1px solid var(--line); }
 .compile-errors summary { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 14px; color: var(--muted); font-size: 11px; cursor: pointer; list-style: none; }
 .compile-errors summary::-webkit-details-marker { display: none; }
