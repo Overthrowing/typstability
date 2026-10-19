@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import type { Project } from './lib/storage'
 import type { Box, EditorPage } from './types'
 import { compileTypstSvg } from './typst/client'
 
@@ -16,9 +17,15 @@ vi.mock('./lib/images', async (importOriginal) => ({
   decodeImageFile: async () => ({ dataUrl: 'data:image/png;base64,AA==', mime: 'image/png' as const, naturalWidth: 100, naturalHeight: 80 }),
 }))
 
+const records = vi.hoisted(() => new Map<string, Project>())
 vi.mock('./lib/storage', () => ({
-  loadSession: async () => undefined,
-  saveSession: async () => undefined,
+  listProjects: vi.fn(async () => [...records.values()].map((project) => ({
+    id: project.id, name: project.document.name, createdAt: project.createdAt,
+    updatedAt: project.document.updatedAt, pageCount: project.document.pages.length,
+  }))),
+  loadProject: vi.fn(async (id: string) => structuredClone(records.get(id))),
+  saveProject: vi.fn(async (project: Project) => { records.set(project.id, structuredClone(project)); return project.id }),
+  deleteProject: vi.fn(async (id: string) => { records.delete(id) }),
 }))
 
 vi.mock('./typst/client', () => ({
@@ -26,33 +33,55 @@ vi.mock('./typst/client', () => ({
   compileTypstPdf: async () => new Uint8Array(),
 }))
 
-afterEach(cleanup)
+beforeEach(() => {
+  records.clear()
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
+  Element.prototype.scrollIntoView = vi.fn()
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true, value() { this.open = true },
+  })
+})
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
+
+async function createBlankProject(name = 'Test document') {
+  const start = await screen.findByRole('button', { name: /Start a blank document/ })
+  await waitFor(() => expect(start).toBeEnabled())
+  fireEvent.click(start)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), { target: { value: name } })
+  fireEvent.click(screen.getByRole('button', { name: 'Create document' }))
+  await screen.findByRole('button', { name: 'Back to projects' })
+}
+
+function insertBlankPage() {
+  fireEvent.click(screen.getByRole('button', { name: 'Insert' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: /Blank page/ }))
+}
 
 describe('page controls', () => {
-  it('adds pages without replacing the document and confirms a new document', async () => {
+  it('adds pages without replacing the document and keeps the previous project', async () => {
     const { container } = render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Blank document' }))
+    await createBlankProject('First')
     expect(container.querySelectorAll('.page-shell')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Insert blank page' }))
+    insertBlankPage()
     expect(container.querySelectorAll('.page-shell')).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-    expect(container.querySelectorAll('.page-shell')).toHaveLength(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
-    expect(container.querySelectorAll('.page-shell')).toHaveLength(2)
-
-    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create new document' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }))
+    await screen.findByRole('button', { name: /Start a blank document/ })
+    await createBlankProject('Second')
     await waitFor(() => expect(container.querySelectorAll('.page-shell')).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }))
+    fireEvent.click(await screen.findByRole('button', { name: /First.*2 pages/ }))
+    await waitFor(() => expect(container.querySelectorAll('.page-shell')).toHaveLength(2))
   })
 
   it('moves a thumbnail to the chosen position and can undo the move', async () => {
     const { container } = render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Blank document' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Insert blank page' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Insert blank page' }))
+    await createBlankProject()
+    insertBlankPage()
+    insertBlankPage()
 
     const order = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.page-thumbnail'))
       .map((button) => button.dataset.pageId)
@@ -75,8 +104,8 @@ describe('page controls', () => {
 describe('image insertion', () => {
   it('pastes into the active page and drops at a position on another page', async () => {
     const { container } = render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Blank document' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Insert blank page' }))
+    await createBlankProject()
+    insertBlankPage()
     const [first, second] = Array.from(container.querySelectorAll<HTMLElement>('.page-shell'))
     const file = new File(['image'], 'photo.png', { type: 'image/png' })
 
@@ -95,9 +124,9 @@ describe('image insertion', () => {
     expect(JSON.parse(second.dataset.elements ?? '[]')).toHaveLength(1)
   })
 
-  it('creates a blank page when an image is pasted on the welcome screen', async () => {
+  it('creates a saved project when an image is pasted in the project library', async () => {
     const { container } = render(<App />)
-    await screen.findByRole('button', { name: 'Blank document' })
+    await screen.findByRole('button', { name: /Start a blank document/ })
     const file = new File(['image'], 'photo.png', { type: 'image/png' })
     fireEvent.paste(window, { clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }] } })
     await waitFor(() => expect(container.querySelectorAll('.page-shell')).toHaveLength(1))
@@ -108,7 +137,7 @@ describe('image insertion', () => {
 describe('zoom controls', () => {
   it('reaches 500% without exceeding it', async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Blank document' }))
+    await createBlankProject()
     const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
     for (let index = 0; index < 50; index += 1) fireEvent.click(zoomIn)
     expect(screen.getByText('500%')).toBeInTheDocument()
@@ -120,7 +149,7 @@ describe('zoom controls', () => {
 describe('Typst top inset', () => {
   it('can be changed for a selected box and triggers a new preview', async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Blank document' }))
+    await createBlankProject()
     fireEvent.click(screen.getByRole('button', { name: 'Add test Typst box' }))
     const inset = screen.getByRole('spinbutton', { name: 'Top inset' })
     expect(inset).toHaveValue(4)

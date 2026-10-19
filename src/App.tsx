@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
 import type { DragEvent as ReactDragEvent } from 'react'
-import { FileUp, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { CanvasPage } from './components/CanvasPage'
 import { PageThumbnail } from './components/PageThumbnail'
 import { PreludeInspector } from './components/PreludeInspector'
 import { Toolbar } from './components/Toolbar'
 import { TypstInspector } from './components/TypstInspector'
+import type { EditorSessions } from './components/TypstCodeEditor'
+import { useViewportZoom } from './lib/use-viewport-zoom'
 import { useHistoryState } from './lib/history'
 import { decodeImageFile, isSupportedImageFile, placeImage } from './lib/images'
 import { createPdfProxy, downloadBytes, exportPdf, readPdf } from './lib/pdf'
-import { loadSession, saveSession } from './lib/storage'
+import { useProjects } from './lib/use-projects'
+import { downloadProject, parseProject } from './lib/project-file'
+import { ProjectLibrary } from './components/ProjectLibrary'
 import { compileTypstSvg } from './typst/client'
 import { DEFAULT_TYPST_TOP_INSET } from './typst/source'
 import { strokeTouchesPoint } from './lib/geometry'
@@ -38,7 +42,7 @@ const emptyDocument = (): EditorDocument => ({
   updatedAt: Date.now(),
 })
 
-function thumbnailDropSide(event: ReactDragEvent<HTMLButtonElement>): DropSide {
+function thumbnailDropSide(event: ReactDragEvent<HTMLElement>): DropSide {
   const bounds = event.currentTarget.getBoundingClientRect()
   return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
 }
@@ -52,7 +56,6 @@ function App() {
   const [selection, setSelection] = useState<Selection>(null)
   const [activePageId, setActivePageId] = useState<string | null>(null)
   const [tool, setTool] = useState<Tool>('select')
-  const [zoom, setZoom] = useState(0.9)
   const [penColor, setPenColor] = useState('#1f2328')
   const [penRadius, setPenRadius] = useState(2)
   const [eraserRadius, setEraserRadius] = useState(12)
@@ -61,22 +64,46 @@ function App() {
   const [draggingPageId, setDraggingPageId] = useState<string | null>(null)
   const [pageDropTarget, setPageDropTarget] = useState<{ pageId: string; side: DropSide } | null>(null)
   const [imageDropTarget, setImageDropTarget] = useState<string | null>(null)
-  const [imageDragActive, setImageDragActive] = useState(false)
   const [preludeOpen, setPreludeOpen] = useState(false)
   const [preludeError, setPreludeError] = useState<string | undefined>()
   const [finalCompileRevision, setFinalCompileRevision] = useState(0)
   const [exporting, setExporting] = useState(false)
-  const [recoverable, setRecoverable] = useState<EditorDocument | null>(null)
-  const [storageReady, setStorageReady] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  const [confirmNewOpen, setConfirmNewOpen] = useState(false)
   const openInputRef = useRef<HTMLInputElement>(null)
+  const documentScrollRef = useRef<HTMLElement>(null)
+  const projectInputRef = useRef<HTMLInputElement>(null)
+  const [readingFile, setReadingFile] = useState(false)
+  const [editorSessions] = useState<EditorSessions>(() => new Map())
+  const generation = useRef(0)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const compileBurstStartRef = useRef<number | null>(null)
   const handledFinalCompileRef = useRef(0)
   const backgroundPreviewRequests = useRef(new Map<string, string>())
   const draggingPageIdRef = useRef<string | null>(null)
   const documentEpochRef = useRef(0)
+
+  const loadDocument = useCallback((next: EditorDocument) => {
+    generation.current += 1
+    documentEpochRef.current += 1
+    backgroundPreviewRequests.current.clear()
+    draggingPageIdRef.current = null
+    setDraggingPageId(null)
+    setPageDropTarget(null)
+    setImageDropTarget(null)
+    setDragPreview(null)
+    setPreludeError(undefined)
+    resetDocumentState(next)
+    setSelection(null)
+    setActivePageId(next.pages[0]?.id ?? null)
+    setTool('select')
+    setPreludeOpen(false)
+    setNotice(null)
+  }, [resetDocumentState])
+
+  const library = useProjects(document, loadDocument)
+  const busy = library.busy || readingFile
+  const widestPage = Math.max(0, ...document.pages.map((page) => page.width))
+  const [zoom, setZoom] = useViewportZoom(documentScrollRef, widestPage, !library.libraryOpen && document.pages.length > 0)
 
   const activePage = document.pages.find((page) => page.id === activePageId) ?? document.pages[0]
   const selectedElement = useMemo(() => {
@@ -96,30 +123,19 @@ function App() {
   const selectedPageId = selection?.pageId
 
   useEffect(() => {
-    loadSession()
-      .then((session) => setRecoverable(session ?? null))
-      .catch(() => undefined)
-      .finally(() => setStorageReady(true))
-  }, [])
-
-  useEffect(() => {
-    if (!storageReady || !document.pages.length) return
-    const timer = window.setTimeout(() => {
-      void saveSession({ ...document, updatedAt: Date.now() })
-    }, 800)
-    return () => window.clearTimeout(timer)
-  }, [document, storageReady])
-
-  useEffect(() => {
     if (!document.originalPdf) {
       setPdfProxy(null)
       return
     }
     let cancelled = false
+    setPdfProxy(null)
+    let loaded: PDFDocumentProxy | null = null
     createPdfProxy(document.originalPdf).then((proxy) => {
-      if (!cancelled) setPdfProxy(proxy)
+      if (cancelled) { void proxy.loadingTask.destroy(); return }
+      loaded = proxy
+      setPdfProxy(proxy)
     }).catch((error) => setNotice(error instanceof Error ? error.message : String(error)))
-    return () => { cancelled = true }
+    return () => { cancelled = true; void loaded?.loadingTask.destroy() }
   }, [document.originalPdf])
 
   const updateDocument = useCallback((updater: (current: EditorDocument) => EditorDocument, record = true) => {
@@ -137,6 +153,8 @@ function App() {
 
   useEffect(() => {
     if (!selectedTypstId || selectedTypstSource === undefined || selectedTypstWidth === undefined || selectedTypstHeight === undefined || !selectedPageId) return
+    let cancelled = false
+    const revision = generation.current
     const id = selectedTypstId
     const pageId = selectedPageId
     const source = selectedTypstSource
@@ -156,6 +174,7 @@ function App() {
       compileBurstStartRef.current = null
       compileTypstSvg(source, width, height, prelude, topInset, pageFill)
         .then((previewSvg) => {
+          if (cancelled || revision !== generation.current) return
           updateDocument((current) => ({
             ...current,
             pages: current.pages.map((page) => page.id === pageId
@@ -183,6 +202,7 @@ function App() {
           }), false)
         })
         .catch((error) => {
+          if (cancelled || revision !== generation.current) return
           updateDocument((current) => ({
             ...current,
             pages: current.pages.map((page) => page.id === pageId
@@ -200,7 +220,7 @@ function App() {
           }), false)
         })
     }, delay)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [
     selectedTypstSource,
     selectedTypstWidth,
@@ -269,43 +289,60 @@ function App() {
 
   useEffect(() => {
     if (!preludeOpen) return
+    let cancelled = false
     const prelude = document.prelude
     const timer = window.setTimeout(() => {
       compileTypstSvg('', 240, 120, prelude)
-        .then(() => setPreludeError(undefined))
-        .catch((error) => setPreludeError(error instanceof Error ? error.message : String(error)))
+        .then(() => { if (!cancelled) setPreludeError(undefined) })
+        .catch((error) => { if (!cancelled) setPreludeError(error instanceof Error ? error.message : String(error)) })
     }, 80)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [document.prelude, preludeOpen])
-
-  const loadDocument = useCallback((next: EditorDocument) => {
-    documentEpochRef.current += 1
-    backgroundPreviewRequests.current.clear()
-    draggingPageIdRef.current = null
-    setDraggingPageId(null)
-    setPageDropTarget(null)
-    setConfirmNewOpen(false)
-    resetDocumentState(next)
-    setSelection(null)
-    setActivePageId(next.pages[0]?.id ?? null)
-    setTool('select')
-    setPreludeOpen(false)
-    setNotice(null)
-  }, [resetDocumentState])
 
   const openPdf = async (file?: File) => {
     if (!file) return
+    setReadingFile(true)
     try {
-      loadDocument(await readPdf(file))
+      await library.create(await readPdf(file))
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'That PDF could not be opened.')
-    }
+    } finally { setReadingFile(false) }
   }
 
-  const newDocument = () => {
+  const importProject = async (file?: File) => {
+    if (!file) return
+    setReadingFile(true)
+    try {
+      const next = parseProject(await file.text())
+      if (next.originalPdf) {
+        const pdf = await createPdfProxy(next.originalPdf)
+        try {
+          if (next.pages.some((page) => page.sourceIndex !== null && page.sourceIndex >= pdf.numPages)) throw new Error('Project references a missing PDF page.')
+        } finally { await pdf.loadingTask.destroy() }
+      }
+      // Preview caches are regenerated from trusted compiler output on import.
+      for (const page of next.pages) for (const element of page.elements) {
+        if (element.kind !== 'typst') continue
+        try {
+          element.previewSvg = await compileTypstSvg(element.source, element.width, element.height, next.prelude,
+            element.topInset ?? DEFAULT_TYPST_TOP_INSET, element.pageFill ?? '')
+          element.previewSource = element.source
+          element.previewWidth = element.width
+          element.previewHeight = element.height
+          element.previewPrelude = next.prelude
+          element.previewTopInset = element.topInset ?? DEFAULT_TYPST_TOP_INSET
+          element.previewPageFill = element.pageFill ?? ''
+        } catch (e) { element.error = String(e) }
+      }
+      await library.create(next)
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'That project could not be imported.') }
+    finally { setReadingFile(false) }
+  }
+
+  const newDocument = (name: string) => {
     const pageId = uid()
-    loadDocument({
-      name: 'Untitled',
+    void library.create({
+      name,
       prelude: '',
       originalPdf: null,
       pages: [{ id: pageId, sourceIndex: null, ...LETTER_PAGE, elements: [] }],
@@ -330,6 +367,7 @@ function App() {
     })
     setActivePageId(pageId)
     setSelection(null)
+    window.requestAnimationFrame(() => globalThis.document.getElementById(`page-${pageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   const deletePage = (pageId: string) => {
@@ -435,7 +473,8 @@ function App() {
       setNotice('Choose a PNG, JPEG, WebP, or GIF image.')
       return
     }
-    const target = document.pages.find((page) => page.id === targetPageId)
+    const createProject = library.libraryOpen || !document.pages.length
+    const target = createProject ? undefined : document.pages.find((page) => page.id === targetPageId)
       ?? document.pages.find((page) => page.id === activePageId)
       ?? document.pages[0]
     const pageId = target?.id ?? uid()
@@ -444,19 +483,20 @@ function App() {
       const decoded = await Promise.all(images.map(decodeImageFile))
       if (documentEpochRef.current !== epoch) return
       const elements = decoded.map((image, index) => placeImage(image, target ?? LETTER_PAGE, dropPoint, index * 16))
-      updateDocument((current) => {
-        if (!current.pages.length) return {
-          ...current,
-          pages: [{ id: pageId, sourceIndex: null, ...LETTER_PAGE, elements }],
-        }
-        if (!current.pages.some((page) => page.id === pageId)) return current
-        return {
-          ...current,
-          pages: current.pages.map((page) => page.id === pageId
-            ? { ...page, elements: [...page.elements, ...elements] }
-            : page),
-        }
-      })
+      if (createProject) {
+        await library.create({ name: images[0].name.replace(/\.[^.]+$/, '') || 'Image document', prelude: '', originalPdf: null,
+          pages: [{ id: pageId, sourceIndex: null, ...LETTER_PAGE, elements }], updatedAt: Date.now() })
+      } else {
+        updateDocument((current) => {
+          if (!current.pages.some((page) => page.id === pageId)) return current
+          return {
+            ...current,
+            pages: current.pages.map((page) => page.id === pageId
+              ? { ...page, elements: [...page.elements, ...elements] }
+              : page),
+          }
+        })
+      }
       setActivePageId(pageId)
       setSelection({ pageId, elementId: elements[elements.length - 1].id })
       setPreludeOpen(false)
@@ -465,7 +505,7 @@ function App() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The image could not be added.')
     }
-  }, [activePageId, document.pages, updateDocument])
+  }, [activePageId, document.pages, library, updateDocument])
 
   useEffect(() => {
     const isFileDrag = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
@@ -487,13 +527,11 @@ function App() {
       if (!isFileDrag(event)) return
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-      setImageDragActive(true)
       setImageDropTarget(targetPage(event.target)?.dataset.pageId ?? null)
     }
     const onDrop = (event: DragEvent) => {
       if (!isFileDrag(event)) return
       event.preventDefault()
-      setImageDragActive(false)
       setImageDropTarget(null)
       const files = Array.from(event.dataTransfer?.files ?? [])
       const target = targetPage(event.target)
@@ -507,7 +545,6 @@ function App() {
     }
     const onDragLeave = (event: DragEvent) => {
       if (event.relatedTarget) return
-      setImageDragActive(false)
       setImageDropTarget(null)
     }
     window.addEventListener('paste', onPaste)
@@ -549,13 +586,10 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (confirmNewOpen) {
-        if (event.key === 'Escape') setConfirmNewOpen(false)
-        return
-      }
+      if (busy || library.libraryOpen) return
       const target = event.target as HTMLElement
-      const editing = target.matches('textarea, input')
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      const editing = target.isContentEditable || !!target.closest('textarea, input, select, .inspector')
+      if (!editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) documentHistory.redo()
         else documentHistory.undo()
@@ -585,41 +619,31 @@ function App() {
     }
   }
 
-  if (!storageReady) {
-    return <main className="loading-screen"><RotateCcw className="spin" size={18} /> Loading locally…</main>
-  }
-
-  if (!document.pages.length) {
-    return (
-      <main className={`welcome ${imageDragActive ? 'is-image-drop-target' : ''}`}>
-        <div className="welcome-card">
-          <div className="welcome-mark">T</div>
-          <p className="eyebrow">LOCAL PDF EDITOR</p>
-          <h1>Quiet tools for working on PDFs.</h1>
-          <p className="welcome-copy">Add images, freehand notes, blank pages, and beautifully typeset Typst—without sending your document anywhere.</p>
-          <div className="welcome-actions">
-            <button className="primary-large" onClick={() => openInputRef.current?.click()}><FileUp size={18} /> Open a PDF</button>
-            <button className="secondary-large" onClick={newDocument}><Plus size={18} /> Blank document</button>
-          </div>
-          {recoverable && recoverable.pages.length > 0 && (
-            <button className="restore-button" onClick={() => loadDocument(recoverable)}>
-              <RotateCcw size={15} /> Restore “{recoverable.name}”
-              <span>{new Date(recoverable.updatedAt).toLocaleString()}</span>
-            </button>
-          )}
-          <div className="privacy-note"><ShieldCheck size={15} /> Your files stay in this browser.</div>
-        </div>
-        <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => void openPdf(event.target.files?.[0])} />
-      </main>
-    )
-  }
+  const fileInputs = <>
+    <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => { void openPdf(event.target.files?.[0]); event.target.value = '' }} />
+    <input ref={projectInputRef} hidden type="file" accept=".typstability,application/json" onChange={(event) => { void importProject(event.target.files?.[0]); event.target.value = '' }} />
+  </>
+  const alert = (notice || library.error) && <div className="notice" role="alert">{notice || library.error}<button aria-label="Dismiss notice" onClick={() => { setNotice(null); library.clearError() }}>×</button></div>
+  const busyIndicator = busy && <div className="busy-overlay" role="status"><RotateCcw className="spin" size={18} /> Working…</div>
+  if (!library.ready) return <main className="loading-screen"><RotateCcw className="spin" size={18} /> Loading projects…</main>
+  if (library.libraryOpen || !document.pages.length) return <>
+    <ProjectLibrary projects={library.projects} activeId={library.activeId} busy={busy}
+      onClose={library.closeLibrary} onNew={newDocument}
+      onPdf={() => openInputRef.current?.click()} onImport={() => projectInputRef.current?.click()}
+      onOpen={(id) => void library.open(id)} onRename={(id, name) => void library.rename(id, name)}
+      onDuplicate={(id) => void library.duplicate(id)} onDelete={(id) => void library.remove(id)} />
+    {fileInputs}{alert}{busyIndicator}
+  </>
 
   return (
     <div className="app-shell">
       <Toolbar
         name={document.name}
+        onRename={(name) => { if (name !== document.name) updateDocument((current) => ({ ...current, name }), false) }}
+        saveStatus={library.status}
+        onProjects={() => void library.showLibrary()}
+        onExportProject={() => { try { downloadProject(document) } catch (e) { setNotice(String(e)) } }}
         tool={tool}
-        zoom={zoom}
         canUndo={documentHistory.canUndo}
         canRedo={documentHistory.canRedo}
         exporting={exporting}
@@ -627,14 +651,11 @@ function App() {
         penRadius={penRadius}
         eraserRadius={eraserRadius}
         preludeOpen={preludeOpen}
-        onOpen={() => openInputRef.current?.click()}
-        onNew={() => setConfirmNewOpen(true)}
         onImage={() => imageInputRef.current?.click()}
         onTool={setChosenTool}
         onBlankPage={insertBlankPage}
         onUndo={documentHistory.undo}
         onRedo={documentHistory.redo}
-        onZoom={(next) => setZoom(Math.min(5, Math.max(0.4, next)))}
         onExport={() => void doExport()}
         onPenColor={setPenColor}
         onPenRadius={setPenRadius}
@@ -643,74 +664,63 @@ function App() {
       />
       <div className="workspace">
         <nav className={`page-rail ${thumbnailsOpen ? '' : 'is-collapsed'}`} aria-label="Pages">
-          <button
-            className="rail-toggle"
-            onClick={() => setThumbnailsOpen((open) => !open)}
-            title={thumbnailsOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
-            aria-label={thumbnailsOpen ? 'Hide page thumbnails' : 'Show page thumbnails'}
-          >
-            {thumbnailsOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
-          </button>
-          {thumbnailsOpen && document.pages.map((page, index) => (
-            <button
-              key={page.id}
-              type="button"
-              draggable={document.pages.length > 1}
-              data-page-id={page.id}
-              aria-label={'Page ' + (index + 1) + ', drag to reorder'}
-              className={[
-                'page-thumbnail',
-                activePage?.id === page.id ? 'is-active' : '',
-                draggingPageId === page.id ? 'is-dragging' : '',
-                pageDropTarget?.pageId === page.id ? 'drop-' + pageDropTarget.side : '',
-              ].filter(Boolean).join(' ')}
-              onDragStart={(event) => {
-                draggingPageIdRef.current = page.id
-                setDraggingPageId(page.id)
-                setPageDropTarget(null)
-                event.dataTransfer.effectAllowed = 'move'
-                event.dataTransfer.setData('text/plain', page.id)
-              }}
-              onDragOver={(event) => {
-                if (!draggingPageIdRef.current || draggingPageIdRef.current === page.id) return
-                event.preventDefault()
-                event.dataTransfer.dropEffect = 'move'
-                const side = thumbnailDropSide(event)
-                setPageDropTarget((current) => current?.pageId === page.id && current.side === side
-                  ? current : { pageId: page.id, side })
-              }}
-              onDrop={(event) => {
-                const draggedId = draggingPageIdRef.current
-                if (!draggedId) return
-                event.preventDefault()
-                const side = thumbnailDropSide(event)
-                if (reorderPages(document.pages, draggedId, page.id, side) !== document.pages) {
-                  updateDocument((current) => ({
-                    ...current,
-                    pages: reorderPages(current.pages, draggedId, page.id, side),
-                  }))
-                }
-                finishPageDrag()
-              }}
-              onDragEnd={finishPageDrag}
-              onClick={() => {
-                setActivePageId(page.id)
-                globalThis.document.getElementById(`page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
-            >
-              <PageThumbnail page={page} pdf={pdfProxy} />
-              <span className="thumbnail-number">{index + 1}</span>
-              {document.pages.length > 1 && (
-                <i
-                  role="button"
-                  aria-label={`Delete page ${index + 1}`}
-                  onClick={(event) => { event.stopPropagation(); deletePage(page.id) }}
-                ><Trash2 size={12} /></i>
-              )}
+          <div className="rail-heading">
+            {thumbnailsOpen && <span>Pages <small>{document.pages.length}</small></span>}
+            <button className="rail-toggle" onClick={() => setThumbnailsOpen((open) => !open)}
+              title={thumbnailsOpen ? 'Hide pages' : 'Show pages'} aria-label={thumbnailsOpen ? 'Hide pages' : 'Show pages'}>
+              {thumbnailsOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
             </button>
-          ))}
+          </div>
+          {thumbnailsOpen && <>
+            {document.pages.map((page, index) => (
+              <div className={[
+                'page-thumbnail', activePage?.id === page.id ? 'is-active' : '',
+                draggingPageId === page.id ? 'is-dragging' : '',
+                pageDropTarget?.pageId === page.id ? `drop-${pageDropTarget.side}` : '',
+              ].filter(Boolean).join(' ')} key={page.id} data-page-id={page.id} draggable={document.pages.length > 1}
+                onDragStart={(event) => {
+                  if ((event.target as HTMLElement).closest('.thumbnail-delete')) { event.preventDefault(); return }
+                  draggingPageIdRef.current = page.id
+                  setDraggingPageId(page.id)
+                  setPageDropTarget(null)
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', page.id)
+                }}
+                onDragOver={(event) => {
+                  if (!draggingPageIdRef.current || draggingPageIdRef.current === page.id) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  const side = thumbnailDropSide(event)
+                  setPageDropTarget((current) => current?.pageId === page.id && current.side === side
+                    ? current : { pageId: page.id, side })
+                }}
+                onDrop={(event) => {
+                  const draggedId = draggingPageIdRef.current
+                  if (!draggedId) return
+                  event.preventDefault()
+                  const side = thumbnailDropSide(event)
+                  if (reorderPages(document.pages, draggedId, page.id, side) !== document.pages) {
+                    updateDocument((current) => ({ ...current,
+                      pages: reorderPages(current.pages, draggedId, page.id, side) }))
+                  }
+                  finishPageDrag()
+                }}
+                onDragEnd={finishPageDrag}>
+                <button className="thumbnail-select" aria-label={`Go to page ${index + 1}`} aria-current={activePage?.id === page.id ? 'page' : undefined}
+                  onClick={() => {
+                    setActivePageId(page.id)
+                    globalThis.document.getElementById(`page-${page.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}>
+                  <PageThumbnail page={page} pdf={pdfProxy} />
+                  <span className="thumbnail-number">{index + 1}</span>
+                </button>
+                {document.pages.length > 1 && <button className="thumbnail-delete" title={`Delete page ${index + 1}`} aria-label={`Delete page ${index + 1}`} onClick={() => deletePage(page.id)}><Trash2 size={12} /></button>}
+              </div>
+            ))}
+            <button className="add-page-button" onClick={insertBlankPage} title="Insert a blank page after the current page"><Plus size={15} /> Add page</button>
+          </>}
         </nav>
-        <main className={`document-scroll ${selectedTypst || preludeOpen ? 'with-inspector' : ''}`}>
+        <main ref={documentScrollRef} className={`document-scroll ${selectedTypst || preludeOpen ? 'with-inspector' : ''}`}>
           {document.pages.map((page, index) => (
             <div id={`page-${page.id}`} key={page.id} className={`page-positioner ${imageDropTarget === page.id ? 'is-image-drop-target' : ''}`}>
               <CanvasPage
@@ -757,6 +767,8 @@ function App() {
         {!preludeOpen && selectedTypst && selection && (
           <TypstInspector
             element={selectedTypst}
+            documentKey={`${library.activeId}:box:${selectedTypst.id}`}
+            sessions={editorSessions}
             onSourceChange={(source) => updateElement(selection.pageId, { ...selectedTypst, source })}
             onTopInsetChange={(topInset) => updateElement(selection.pageId, { ...selectedTypst, topInset })}
             onPageFillChange={(pageFill) => updateElement(selection.pageId, { ...selectedTypst, pageFill })}
@@ -767,6 +779,8 @@ function App() {
         {preludeOpen && (
           <PreludeInspector
             source={document.prelude}
+            documentKey={`${library.activeId}:prelude`}
+            sessions={editorSessions}
             error={preludeError}
             onChange={(prelude) => updateDocument((current) => ({ ...current, prelude }))}
             onClose={() => setPreludeOpen(false)}
@@ -794,20 +808,23 @@ function App() {
           </div>
         )}
       </div>
-      {notice && <div className="notice" role="alert">{notice}<button onClick={() => setNotice(null)}>×</button></div>}
-      {confirmNewOpen && (
-        <div className="dialog-backdrop" onClick={() => setConfirmNewOpen(false)}>
-          <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-new-title" aria-describedby="confirm-new-description" onClick={(event) => event.stopPropagation()}>
-            <h2 id="confirm-new-title">Create a new document?</h2>
-            <p id="confirm-new-description">This will replace the pages you’re editing. Export the current PDF first if you want to keep a copy.</p>
-            <div className="confirm-actions">
-              <button autoFocus onClick={() => setConfirmNewOpen(false)}>Keep editing</button>
-              <button className="confirm-new-button" onClick={newDocument}>Create new document</button>
-            </div>
-          </div>
+      <footer className="editor-statusbar">
+        <span className="page-count">Page {Math.max(1, document.pages.findIndex((page) => page.id === activePage?.id) + 1)} of {document.pages.length}</span>
+        <span className="tool-hint">{tool === 'typst' ? 'Drag on a page to add a text box.' : tool === 'pen' ? 'Drag to draw. Your strokes save automatically.' : tool === 'eraser' ? 'Drag over pen strokes to erase them.' : 'Click an object to move, resize, or edit it.'}</span>
+        <div className="zoom-control">
+          <button className="fit-page" onClick={() => {
+            const viewport = documentScrollRef.current
+            if (!viewport || !activePage) return
+            const width = viewport.clientWidth - parseFloat(getComputedStyle(viewport).paddingRight) - 48
+            setZoom(Math.max(0.1, Math.min(5, width / activePage.width, (viewport.clientHeight - 72) / activePage.height)))
+            window.requestAnimationFrame(() => globalThis.document.getElementById(`page-${activePage.id}`)?.scrollIntoView({ block: 'center' }))
+          }}>Fit page</button>
+          <button onClick={() => setZoom((value) => Math.max(0.1, value - 0.1))} disabled={zoom <= 0.1} aria-label="Zoom out"><ZoomOut size={15} /></button>
+          <button className="zoom-reset" onClick={() => setZoom(1)} title="Reset zoom to 100%">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => setZoom((value) => Math.min(5, value + 0.1))} disabled={zoom >= 5} aria-label="Zoom in"><ZoomIn size={15} /></button>
         </div>
-      )}
-      <input ref={openInputRef} hidden type="file" accept="application/pdf" onChange={(event) => void openPdf(event.target.files?.[0])} />
+      </footer>
+      {alert}{fileInputs}{busyIndicator}
       <input ref={imageInputRef} hidden type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" onChange={(event) => {
         void addImages(Array.from(event.target.files ?? []))
         event.target.value = ''

@@ -181,7 +181,7 @@ function CanvasObject({ element, zoom, interactive, selected, onSelect, onChange
         ref={shapeRef}
         {...common}
         fill="rgba(0, 0, 0, 0.001)"
-        stroke={selected ? '#4d63ff' : element.kind === 'typst' && !image ? '#b7b5ad' : undefined}
+        stroke={selected ? '#229ca8' : element.kind === 'typst' && !image ? '#b7b5ad' : undefined}
         dash={element.kind === 'typst' && !image ? [4, 4] : undefined}
         strokeWidth={selected ? 1 : undefined}
       />
@@ -190,9 +190,9 @@ function CanvasObject({ element, zoom, interactive, selected, onSelect, onChange
           ref={transformerRef}
           rotateEnabled={false}
           flipEnabled={false}
-          borderStroke="#4d63ff"
+          borderStroke="#229ca8"
           anchorFill="#ffffff"
-          anchorStroke="#4d63ff"
+          anchorStroke="#229ca8"
           anchorSize={7}
           boundBoxFunc={(oldBox, newBox) => {
             const minimumWidth = element.kind === 'typst' ? MIN_BOX_SCREEN_PIXELS : 24 * zoom
@@ -256,7 +256,9 @@ export function CanvasPage({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !pdf || page.sourceIndex === null) return
-    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, zoom)
+    const controller = new AbortController()
+    void renderPdfPage(pdf, page.sourceIndex + 1, canvas, zoom, controller.signal).catch(console.error)
+    return () => controller.abort()
   }, [page.sourceIndex, pdf, zoom])
 
   const flatTemporaryPoints = useMemo(
@@ -382,7 +384,7 @@ export function CanvasPage({
             <Rect
               {...box}
               fill="rgba(77, 99, 255, 0.08)"
-              stroke="#4d63ff"
+              stroke="#229ca8"
               strokeWidth={1}
               dash={[6, 4]}
               listening={false}
