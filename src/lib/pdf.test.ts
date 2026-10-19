@@ -20,6 +20,8 @@ function asFile(bytes: Uint8Array) {
 }
 
 describe('editable PDF round trip', () => {
+  // PDF.js spins up a worker and renders annotation appearances in this integration test.
+  // A cold, shared CI runner can take longer than Vitest's 5-second default.
   it('restores Typst source, prelude, image, and stroke without duplicating annotations', async () => {
     const cwd = (globalThis as typeof globalThis & { process: { cwd: () => string } }).process.cwd()
     pdfjs.GlobalWorkerOptions.workerSrc = `file://${cwd}/node_modules/pdfjs-dist/build/pdf.worker.min.mjs`
@@ -82,5 +84,5 @@ describe('editable PDF round trip', () => {
     const editedPdf = await readPdf(asFile(await exportPdf(edited)))
     expect(editedPdf.pages[0].elements).toHaveLength(2)
     expect(editedPdf.pages[0].elements.find((element) => element.kind === 'typst')).toMatchObject({ source: 'Changed' })
-  })
+  }, 20_000)
 })
